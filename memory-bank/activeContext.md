@@ -1,5 +1,5 @@
 # Active Context
 
-- Frosted glass UI: transparent Electron window + macOS vibrancy
-- SaaS visuals: SVG hero + tool/empty illustrations, ambient blobs, float animations
-- Dark/light theme toggle still persisted
+- Full UI redesign: top pill tabs, solid surfaces, teal accent, overview live-scan checklist
+- Scan feature states: ✓ done / ● active / ○ pending (Application caches → Developer caches)
+- Dark/light theme toggle retained

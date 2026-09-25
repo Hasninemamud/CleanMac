@@ -1,10 +1,3 @@
-const META = {
-  home: { title: 'Overview', subtitle: 'Disk usage at a glance' },
-  junk: { title: 'Junk', subtitle: 'Caches, logs, and leftovers' },
-  large: { title: 'Large files', subtitle: 'Files over 50 MB in your home folder' },
-  dupes: { title: 'Duplicates', subtitle: 'Identical copies — keep one, trash the rest' },
-};
-
 const CATEGORY_LABELS = {
   userCaches: 'Caches',
   logs: 'Logs',
@@ -14,6 +7,14 @@ const CATEGORY_LABELS = {
   browsers: 'Browsers',
   other: 'Other',
 };
+
+const LIVE_ITEMS = [
+  { key: 'caches', label: 'Application caches', found: '1.2 GB' },
+  { key: 'logs', label: 'Logs', found: '340 MB' },
+  { key: 'browser', label: 'Browser caches', found: '890 MB' },
+  { key: 'temp', label: 'Temporary files', found: '210 MB' },
+  { key: 'dev', label: 'Developer caches', found: '2.4 GB' },
+];
 
 const state = {
   tab: 'home',
@@ -55,7 +56,6 @@ function getTheme() {
 function applyTheme(theme) {
   document.documentElement.setAttribute('data-theme', theme);
   localStorage.setItem('cleanmac-theme', theme);
-  document.getElementById('theme-label').textContent = theme === 'dark' ? 'Light' : 'Dark';
   cleanmac.setTheme?.(theme);
 }
 
@@ -72,29 +72,64 @@ function stagger(nodes) {
   });
 }
 
+/* Live scan demo on overview */
+function setLiveStates(activeIndex) {
+  const list = document.getElementById('live-list');
+  [...list.children].forEach((li, i) => {
+    li.classList.remove('on', 'ok');
+    if (i < activeIndex) li.classList.add('ok');
+    else if (i === activeIndex) li.classList.add('on');
+  });
+}
+
+function runLiveScan() {
+  const status = document.getElementById('live-status');
+  const note = document.getElementById('live-note');
+  const dot = document.getElementById('scan-dot');
+  let i = 0;
+
+  dot.classList.remove('idle');
+  status.textContent = 'Scanning…';
+  note.textContent = 'Finding reclaimable space…';
+  setLiveStates(0);
+
+  const step = () => {
+    if (i >= LIVE_ITEMS.length) {
+      setLiveStates(LIVE_ITEMS.length);
+      dot.classList.add('idle');
+      status.textContent = 'Scan complete';
+      note.textContent = 'About 5.0 GB ready to review';
+      setTimeout(runLiveScan, 2400);
+      return;
+    }
+    setLiveStates(i);
+    status.textContent = 'Scanning…';
+    note.textContent = `Checking ${LIVE_ITEMS[i].label}…`;
+    setTimeout(() => {
+      note.textContent = `${LIVE_ITEMS[i].label}: ${LIVE_ITEMS[i].found}`;
+      i += 1;
+      setTimeout(step, 260);
+    }, 850);
+  };
+  step();
+}
+
 function switchTab(tab) {
   state.tab = tab;
-  document.querySelectorAll('.nav').forEach((b) => {
+  document.querySelectorAll('.tab').forEach((b) => {
     b.classList.toggle('active', b.dataset.tab === tab);
   });
   document.querySelectorAll('.panel').forEach((p) => {
     p.classList.toggle('active', p.id === `panel-${tab}`);
   });
-  const m = META[tab] || { title: tab, subtitle: '' };
-  const title = document.getElementById('title');
-  title.textContent = m.title;
-  title.style.animation = 'none';
-  void title.offsetWidth;
-  title.style.animation = '';
-  document.getElementById('subtitle').textContent = m.subtitle;
   refreshDock();
 }
 
-document.querySelectorAll('.nav').forEach((btn) => {
+document.querySelectorAll('.tab').forEach((btn) => {
   btn.addEventListener('click', () => switchTab(btn.dataset.tab));
 });
 
-document.querySelectorAll('.tool[data-go]').forEach((btn) => {
+document.querySelectorAll('.quick-card[data-go]').forEach((btn) => {
   btn.addEventListener('click', () => {
     const tab = btn.dataset.go;
     switchTab(tab);
@@ -113,7 +148,7 @@ cleanmac.onProgress((p) => {
 function clearSelection() {
   state.selection.clear();
   state.selectionSource = null;
-  document.querySelectorAll('.item-list input[type=checkbox], #dupe-groups input[type=checkbox]').forEach((inp) => {
+  document.querySelectorAll('.rows input[type=checkbox], #dupe-groups input[type=checkbox]').forEach((inp) => {
     inp.checked = false;
   });
   refreshDock();
@@ -167,7 +202,7 @@ async function doTrash(items) {
   const selected = [...state.selection.keys()];
   if (!selected.length) return;
   if (!(await confirmTrash(selected.length))) return;
-  setStatus('Moving to Trash…');
+  setStatus('Moving to Trash…', true);
   state.busy = true;
   try {
     const result = await cleanmac.trash({ items, selectedPaths: selected });
@@ -209,10 +244,9 @@ async function runOverview() {
     freeEl.classList.add('pop');
     document.getElementById('disk-used').textContent = `Used ${formatBytes(data.usedBytes)}`;
     document.getElementById('disk-total').textContent = `Total ${formatBytes(data.totalBytes)}`;
-    document.getElementById('disk-used-bar').style.width = '0%';
-    requestAnimationFrame(() => {
-      document.getElementById('disk-used-bar').style.width = `${pct}%`;
-    });
+    const bar = document.getElementById('disk-used-bar');
+    bar.style.width = '0%';
+    requestAnimationFrame(() => { bar.style.width = `${pct}%`; });
 
     const list = document.getElementById('overview-rows');
     list.innerHTML = '';
@@ -395,4 +429,5 @@ document.getElementById('btn-dupes').addEventListener('click', async () => {
 });
 
 initTheme();
+runLiveScan();
 runOverview();

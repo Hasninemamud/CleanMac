@@ -1,6 +1,18 @@
 # CleanMac
 
-Mac space cleaner — distribute as a `.dmg`. Overview, Junk, Large Files, Duplicates.
+Mac space cleaner — Overview, Junk, Large Files, Duplicates.
+
+## Website
+
+Marketing site with live scan demo:
+
+```bash
+open website/index.html
+# or
+npx serve website
+```
+
+GitHub Pages: Settings → Pages → deploy from `/website` (or root `docs`).
 
 ## Develop
 
@@ -13,16 +25,12 @@ npm start
 ## Build DMG
 
 ```bash
-cd ~/cleanmac
-npm install
 npm run dist:unsigned
 ```
 
-Output: `dist/CleanMac-1.0.0-*.dmg`
+Output: `dist/CleanMac-*-arm64.dmg`
 
-Open the DMG → drag **CleanMac** to **Applications**.
-
-On first launch macOS may warn about an unsigned app: System Settings → Privacy & Security → Open Anyway.
+Release: https://github.com/Hasninemamud/CleanMac/releases
 
 ## Safety
 

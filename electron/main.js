@@ -17,19 +17,14 @@ function createWindow() {
   nativeTheme.themeSource = 'system';
 
   mainWindow = new BrowserWindow({
-    width: 1100,
-    height: 740,
-    minWidth: 900,
-    minHeight: 600,
+    width: 1120,
+    height: 760,
+    minWidth: 920,
+    minHeight: 620,
     title: 'CleanMac',
-    transparent: true,
-    backgroundColor: '#00000000',
-    vibrancy: 'under-window',
-    visualEffectState: 'followWindow',
+    backgroundColor: '#f6f7f9',
     titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 16, y: 18 },
-    hasShadow: true,
-    roundedCorners: true,
+    trafficLightPosition: { x: 16, y: 16 },
     show: false,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -105,7 +100,7 @@ app.whenReady().then(() => {
   ipcMain.handle('app:theme', (_e, theme) => {
     nativeTheme.themeSource = theme === 'dark' ? 'dark' : 'light';
     if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.setBackgroundColor('#00000000');
+      mainWindow.setBackgroundColor(theme === 'dark' ? '#0b0d12' : '#f6f7f9');
     }
     return theme;
   });
