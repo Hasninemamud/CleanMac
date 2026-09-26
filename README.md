@@ -1,8 +1,6 @@
 # CleanMac
 
-Mac space cleaner — **Go kernel + shell scripts + SwiftUI app** (Mole-style architecture).
-
-Electron (`electron/`, `src/`) is **deprecated**; use the native stack below.
+Mac space cleaner — **Go kernel + shell scripts + SwiftUI app**.
 
 ## Architecture
 
@@ -25,30 +23,19 @@ Files go to **Trash** only (Swift UI). System paths stay blocked.
 ## Develop
 
 ```bash
-# Go CLI
+cd ~/cleanmac
 make build
 ./bin/cleanmac version
 make selfcheck
 
-# SwiftUI app (.app with embedded binary)
 make app
 open macos/CleanMac.app
-
-# Or launch helper
-./scripts/launch.sh
 ```
 
 Install CLI to `~/bin`:
 
 ```bash
 make install
-```
-
-## Legacy Electron
-
-```bash
-npm install && npm start   # deprecated
-npm run dist:unsigned      # old DMG path
 ```
 
 Website: `website/index.html`
