@@ -1,5 +1,6 @@
 # Active Context
 
-- Full UI redesign: top pill tabs, solid surfaces, teal accent, overview live-scan checklist
-- Scan feature states: ✓ done / ● active / ○ pending (Application caches → Developer caches)
-- Dark/light theme toggle retained
+- **Primary stack:** Go CLI + shell + SwiftUI (Mole-style). Electron deprecated.
+- Nav: **Clean** (Junk / Installers / Purge), **Apps**, **Analyze**, **Optimize**, **Status**
+- Trash-only deletes in Swift (`FileManager.trashItem`); Go scans only
+- Gold/dark theme tokens in SwiftUI `Theme`

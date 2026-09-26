@@ -4,10 +4,10 @@ Mac space cleaner focused on reclaiming disk safely.
 
 ## Goals
 
-- Free space via junk, large files, and duplicates
+- Free space via junk, large files, duplicates, installers, purge artifacts, app leftovers
 - Review-first UI; Trash-by-default
-- No malware, cloud, or RAM-booster modules in v1
+- Native stack: Go kernel + SwiftUI shell (Mole-style)
 
-## Scope (v1)
+## Scope
 
-Overview, Junk, Large Files, Duplicates.
+Clean, Apps, Analyze, Optimize, Status.

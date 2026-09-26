@@ -1,37 +1,54 @@
 # CleanMac
 
-Mac space cleaner — Overview, Junk, Large Files, Duplicates.
+Mac space cleaner — **Go kernel + shell scripts + SwiftUI app** (Mole-style architecture).
 
-## Website
+Electron (`electron/`, `src/`) is **deprecated**; use the native stack below.
 
-Marketing site with live scan demo:
+## Architecture
 
-```bash
-open website/index.html
-# or
-npx serve website
+```
+Go (cmd/cleanmac)     scanners, analyze, optimize, status — JSON CLI
+Shell (scripts/)      install / launch / selfcheck / build-app
+SwiftUI (macos/)      review-first UI; Trash via FileManager
 ```
 
-GitHub Pages: Settings → Pages → deploy from `/website` (or root `docs`).
+| Module | CLI |
+| --- | --- |
+| Junk / Installers / Purge | `cleanmac junk\|installer\|purge --json` |
+| Apps leftovers | `cleanmac apps --json` |
+| Disk / Large / Dupes | `cleanmac analyze overview\|large\|dupes --json` |
+| Optimize | `cleanmac optimize [--dry-run] --json` |
+| Status | `cleanmac status --json` |
+
+Files go to **Trash** only (Swift UI). System paths stay blocked.
 
 ## Develop
 
 ```bash
-cd ~/cleanmac
-npm install
-npm start
+# Go CLI
+make build
+./bin/cleanmac version
+make selfcheck
+
+# SwiftUI app (.app with embedded binary)
+make app
+open macos/CleanMac.app
+
+# Or launch helper
+./scripts/launch.sh
 ```
 
-## Build DMG
+Install CLI to `~/bin`:
 
 ```bash
-npm run dist:unsigned
+make install
 ```
 
-Output: `dist/CleanMac-*-arm64.dmg`
+## Legacy Electron
 
-Release: https://github.com/Hasninemamud/CleanMac/releases
+```bash
+npm install && npm start   # deprecated
+npm run dist:unsigned      # old DMG path
+```
 
-## Safety
-
-Trash only. System paths blocked.
+Website: `website/index.html`

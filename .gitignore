@@ -6,3 +6,7 @@ out/
 .DS_Store
 .npm/
 build/icon.iconset/
+bin/
+macos/CleanMac/.build/
+macos/CleanMac.app/
+macos/CleanMac/.swiftpm/

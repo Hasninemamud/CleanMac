@@ -1,8 +1,12 @@
 # System Patterns
 
-- `src/core` — pure Node scanners/safety (no Electron import except trash callback)
-- `electron/main.js` — BrowserWindow + IPC
-- `electron/preload.js` — contextBridge API
-- `src/ui` — renderer
-- Safety: blocked prefixes; Trash via injected `trashFn` (`shell.trashItem`)
+```
+SwiftUI Models → CLIExecutor (argv, never shell strings) → bin/cleanmac --json
+                                              ↘ FileManager.trashItem (destructive)
+```
+
+- `internal/*` — Go scanners + safety (no UI)
+- `cmd/cleanmac` — CLI subcommands, progress on stderr JSON
+- `macos/CleanMac` — `@Observable` AppState + views
+- Safety: blocked prefixes mirrored in Go `internal/safety` and Swift `Safety.swift`
 - Duplicates: size → partial SHA-256 → full SHA-256
