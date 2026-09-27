@@ -101,6 +101,13 @@ struct ContentView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 12)
+            if state.busy {
+                Button("Stop") {
+                    state.stop()
+                }
+                .buttonStyle(SoftButtonStyle())
+                .fixedSize()
+            }
             Button(scanLabel) {
                 Task { await state.scan() }
             }

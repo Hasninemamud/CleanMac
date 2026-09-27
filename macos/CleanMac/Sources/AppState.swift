@@ -76,11 +76,13 @@ final class AppState {
         currentItems.filter { selected.contains($0.path) }.reduce(0) { $0 + $1.byteSize }
     }
 
-    func scan() async {
-        busy = true
-        errorMessage = nil
-        statusLine = "Scanning…"
-        defer { busy = false }
+    func scan(quiet: Bool = false) async {
+        if !quiet {
+            busy = true
+            errorMessage = nil
+            statusLine = "Scanning…"
+        }
+        defer { if !quiet { busy = false } }
         do {
             switch section {
             case .clean:
@@ -117,14 +119,26 @@ final class AppState {
             case .status:
                 metrics = try await CLIExecutor.shared.run(["status", "--json"], as: StatusSnapshot.self)
             }
-            statusLine = "Done"
-            if section != .analyze || analyzeSegment != .dupes {
-                selected.removeAll()
+            if !quiet {
+                statusLine = "Done"
+                if section != .analyze || analyzeSegment != .dupes {
+                    selected.removeAll()
+                }
             }
         } catch {
-            errorMessage = error.localizedDescription
-            statusLine = "Error"
+            if let cli = error as? CLIError, case .cancelled = cli {
+                if !quiet { statusLine = "Stopped" }
+            } else if !quiet {
+                errorMessage = error.localizedDescription
+                statusLine = "Error"
+            }
         }
+    }
+
+    func stop() {
+        guard busy else { return }
+        CLIExecutor.shared.cancel()
+        statusLine = "Stopping…"
     }
 
     func runOptimize(ids: [String], dryRun: Bool) async {
@@ -138,7 +152,11 @@ final class AppState {
             optimizeActions = r.actions
             statusLine = dryRun ? "Preview ready" : "Optimize finished"
         } catch {
-            errorMessage = error.localizedDescription
+            if let cli = error as? CLIError, case .cancelled = cli {
+                statusLine = "Stopped"
+            } else {
+                errorMessage = error.localizedDescription
+            }
         }
     }
 

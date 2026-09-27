@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 
 struct ScanItem: Identifiable, Codable, Hashable {
     var id: String { path }
@@ -70,6 +71,15 @@ struct OptimizeAction: Identifiable, Codable {
     var detail: String?
 }
 
+struct ProcessRow: Identifiable, Codable, Hashable {
+    var id: Int { pid }
+    let pid: Int
+    let name: String
+    let cpu: Double
+    let memMB: Double
+    let memPct: Double
+}
+
 struct StatusSnapshot: Codable {
     let timestamp: Int64
     let hostname: String
@@ -82,24 +92,49 @@ struct StatusSnapshot: Codable {
     let diskUsed: Int64
     var loadAvg: [Double]?
     var uptimeSec: Int64?
+    var model: String?
+    var chip: String?
+    var osVersion: String?
+    var cpuPercent: Double?
+    var memPressure: Double?
+    var swapUsed: UInt64?
+    var memApp: UInt64?
+    var memWired: UInt64?
+    var memCompressed: UInt64?
+    var memCached: UInt64?
+    var batteryPct: Int?
+    var batteryState: String?
+    var batteryWatts: Double?
+    var netDownKBs: Double?
+    var netUpKBs: Double?
+    var gpuPercent: Double?
+    var thermal: String?
+    var healthScore: Int?
+    var healthLabel: String?
+    var processes: [ProcessRow]?
 }
 
 enum CLIError: LocalizedError {
     case binaryMissing(String)
     case failed(String)
     case decode(String)
+    case cancelled
 
     var errorDescription: String? {
         switch self {
         case .binaryMissing(let p): return "cleanmac binary not found at \(p)"
         case .failed(let m): return m
         case .decode(let m): return "JSON decode: \(m)"
+        case .cancelled: return "Stopped"
         }
     }
 }
 
-final class CLIExecutor {
+final class CLIExecutor: @unchecked Sendable {
     static let shared = CLIExecutor()
+
+    private let lock = NSLock()
+    private var currentProcess: Process?
 
     func binaryPath() -> String {
         if let res = Bundle.main.resourceURL?.appendingPathComponent("cleanmac").path,
@@ -115,11 +150,17 @@ final class CLIExecutor {
         for c in candidates where FileManager.default.isExecutableFile(atPath: c) {
             return c
         }
-        // Dev: sibling of Package.swift build
         let dev = URL(fileURLWithPath: #file)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
             .deletingLastPathComponent().appendingPathComponent("bin/cleanmac").path
         return dev
+    }
+
+    func cancel() {
+        lock.lock()
+        let proc = currentProcess
+        lock.unlock()
+        proc?.terminate()
     }
 
     func run<T: Decodable>(_ args: [String], as type: T.Type) async throws -> T {
@@ -138,24 +179,43 @@ final class CLIExecutor {
     private func runRaw(_ argv: [String]) async throws -> Data {
         try await withCheckedThrowingContinuation { cont in
             DispatchQueue.global(qos: .userInitiated).async {
+                let proc = Process()
+                proc.executableURL = URL(fileURLWithPath: argv[0])
+                proc.arguments = Array(argv.dropFirst())
+                let out = Pipe()
+                let err = Pipe()
+                proc.standardOutput = out
+                proc.standardError = err
+
+                self.lock.lock()
+                self.currentProcess = proc
+                self.lock.unlock()
+
                 do {
-                    let proc = Process()
-                    proc.executableURL = URL(fileURLWithPath: argv[0])
-                    proc.arguments = Array(argv.dropFirst())
-                    let out = Pipe()
-                    let err = Pipe()
-                    proc.standardOutput = out
-                    proc.standardError = err
                     try proc.run()
                     proc.waitUntilExit()
+
+                    self.lock.lock()
+                    if self.currentProcess === proc { self.currentProcess = nil }
+                    self.lock.unlock()
+
+                    if proc.terminationReason == .uncaughtSignal || proc.terminationStatus == 15 || proc.terminationStatus == SIGTERM {
+                        cont.resume(throwing: CLIError.cancelled)
+                        return
+                    }
                     let data = out.fileHandleForReading.readDataToEndOfFile()
                     if proc.terminationStatus != 0 {
-                        let msg = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "exit \(proc.terminationStatus)"
-                        cont.resume(throwing: CLIError.failed(msg))
+                        let msg = String(data: err.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
+                            ?? "exit \(proc.terminationStatus)"
+                        let trimmed = msg.trimmingCharacters(in: .whitespacesAndNewlines)
+                        cont.resume(throwing: CLIError.failed(trimmed.isEmpty ? "exit \(proc.terminationStatus)" : trimmed))
                         return
                     }
                     cont.resume(returning: data)
                 } catch {
+                    self.lock.lock()
+                    if self.currentProcess === proc { self.currentProcess = nil }
+                    self.lock.unlock()
                     cont.resume(throwing: error)
                 }
             }

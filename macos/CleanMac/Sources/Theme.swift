@@ -164,25 +164,35 @@ struct RingMeter: View {
     let label: String
     let detail: String
     let color: Color
-    var size: CGFloat = 118
+    var size: CGFloat = 108
+
+    private var clamped: Double { min(max(progress, 0), 1) }
 
     var body: some View {
-        VStack(spacing: 10) {
+        VStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .stroke(Theme.line, lineWidth: 10)
+                    .stroke(color.opacity(0.12), lineWidth: 9)
                 Circle()
-                    .trim(from: 0, to: min(max(progress, 0), 1))
-                    .stroke(color, style: StrokeStyle(lineWidth: 10, lineCap: .round))
+                    .trim(from: 0, to: clamped)
+                    .stroke(
+                        AngularGradient(colors: [color.opacity(0.55), color], center: .center),
+                        style: StrokeStyle(lineWidth: 9, lineCap: .round)
+                    )
                     .rotationEffect(.degrees(-90))
-                    .animation(.easeInOut(duration: 0.55), value: progress)
-                VStack(spacing: 2) {
-                    Text("\(Int((min(max(progress, 0), 1) * 100).rounded()))%")
-                        .font(.system(size: 22, weight: .bold, design: .rounded))
+                    .animation(.spring(response: 0.55, dampingFraction: 0.85), value: clamped)
+                Circle()
+                    .fill(color.opacity(0.08))
+                    .frame(width: size * 0.62, height: size * 0.62)
+                VStack(spacing: 1) {
+                    Text("\(Int((clamped * 100).rounded()))%")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundColor(Theme.ink)
                         .monospacedDigit()
-                    Text(label)
-                        .font(.system(size: 11, weight: .semibold))
+                        .contentTransition(.numericText())
+                    Text(label.uppercased())
+                        .font(.system(size: 9, weight: .bold))
+                        .tracking(0.8)
                         .foregroundColor(Theme.muted)
                 }
             }
@@ -192,14 +202,17 @@ struct RingMeter: View {
                 .foregroundColor(Theme.muted)
                 .multilineTextAlignment(.center)
                 .lineLimit(2)
-                .frame(maxWidth: size + 40)
         }
-        .padding(16)
+        .padding(.vertical, 18)
+        .padding(.horizontal, 12)
         .frame(maxWidth: .infinity)
-        .background(Theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .fill(Theme.surface)
+                .shadow(color: color.opacity(0.12), radius: 16, y: 6)
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
                 .stroke(Theme.line, lineWidth: 1)
         )
     }
@@ -212,28 +225,33 @@ struct BarMeter: View {
     let trailing: String
     let color: Color
 
+    private var clamped: Double { min(max(progress, 0), 1) }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            HStack {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
                 Text(title)
-                    .font(.system(size: 12, weight: .semibold))
+                    .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(Theme.ink)
                 Spacer()
-                Text("\(Int((min(max(progress, 0), 1) * 100).rounded()))%")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                Text("\(Int((clamped * 100).rounded()))%")
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
                     .foregroundColor(color)
                     .monospacedDigit()
+                    .contentTransition(.numericText())
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Theme.line)
+                    Capsule().fill(Theme.line.opacity(0.8))
                     Capsule()
-                        .fill(color)
-                        .frame(width: max(4, geo.size.width * min(max(progress, 0), 1)))
-                        .animation(.easeInOut(duration: 0.45), value: progress)
+                        .fill(
+                            LinearGradient(colors: [color.opacity(0.7), color], startPoint: .leading, endPoint: .trailing)
+                        )
+                        .frame(width: max(6, geo.size.width * clamped))
+                        .animation(.spring(response: 0.5, dampingFraction: 0.85), value: clamped)
                 }
             }
-            .frame(height: 8)
+            .frame(height: 10)
             HStack {
                 Text(leading)
                     .font(.system(size: 11, weight: .medium))
@@ -244,11 +262,13 @@ struct BarMeter: View {
                     .foregroundColor(Theme.muted)
             }
         }
-        .padding(14)
-        .background(Theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .padding(16)
+        .background(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(Theme.surface)
+        )
         .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Theme.line, lineWidth: 1)
         )
     }
@@ -261,18 +281,53 @@ struct Sparkline: View {
     var body: some View {
         GeometryReader { geo in
             let maxV = max(values.max() ?? 1, 0.001)
+            let minV = min(values.min() ?? 0, maxV)
+            let span = max(maxV - minV, 0.001)
             let pts: [CGPoint] = values.enumerated().map { i, v in
                 let x = values.count <= 1 ? 0 : CGFloat(i) / CGFloat(values.count - 1) * geo.size.width
-                let y = geo.size.height - CGFloat(v / maxV) * geo.size.height
+                let y = geo.size.height - CGFloat((v - minV) / span) * geo.size.height * 0.92 - geo.size.height * 0.04
                 return CGPoint(x: x, y: y)
             }
-            Path { p in
-                guard let first = pts.first else { return }
-                p.move(to: first)
-                for pt in pts.dropFirst() { p.addLine(to: pt) }
+
+            ZStack {
+                // grid
+                VStack(spacing: 0) {
+                    ForEach(0..<3, id: \.self) { _ in
+                        Spacer()
+                        Rectangle().fill(Theme.line.opacity(0.55)).frame(height: 1)
+                    }
+                    Spacer(minLength: 0)
+                }
+
+                if pts.count > 1 {
+                    Path { p in
+                        p.move(to: CGPoint(x: pts[0].x, y: geo.size.height))
+                        for pt in pts { p.addLine(to: pt) }
+                        p.addLine(to: CGPoint(x: pts.last!.x, y: geo.size.height))
+                        p.closeSubpath()
+                    }
+                    .fill(
+                        LinearGradient(
+                            colors: [color.opacity(0.28), color.opacity(0.02)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+
+                    Path { p in
+                        p.move(to: pts[0])
+                        for pt in pts.dropFirst() { p.addLine(to: pt) }
+                    }
+                    .stroke(color, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+
+                    Circle()
+                        .fill(color)
+                        .frame(width: 7, height: 7)
+                        .shadow(color: color.opacity(0.5), radius: 4)
+                        .position(pts.last!)
+                }
             }
-            .stroke(color, style: StrokeStyle(lineWidth: 2, lineCap: .round, lineJoin: .round))
         }
-        .frame(height: 36)
+        .frame(height: 72)
     }
 }
