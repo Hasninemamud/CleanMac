@@ -4,13 +4,10 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 APP="$ROOT/macos/CleanMac.app"
 BIN="$ROOT/bin/cleanmac"
 
-if [[ -d "$APP" ]]; then
-  open "$APP"
-  exit 0
+if [[ ! -d "$APP" ]]; then
+  make -C "$ROOT" app
 fi
 
-if [[ ! -x "$BIN" ]]; then
-  make -C "$ROOT" build
-fi
-
-exec "$BIN" "$@"
+# Browser downloads set com.apple.quarantine → Gatekeeper reports "damaged".
+xattr -cr "$APP" 2>/dev/null || true
+open "$APP"

@@ -18,14 +18,11 @@ type Rule struct {
 }
 
 func Rules() []Rule {
+	// Cache / rebuildable intermediates only — no Trash, logs, or archives.
 	return []Rule{
 		{Category: "userCaches", RelativePath: "Library/Caches", Safety: "safe", Explanation: "User application caches. Apps rebuild them."},
-		{Category: "logs", RelativePath: "Library/Logs", Safety: "safe", Explanation: "Application logs in your home Library."},
-		{Category: "trash", RelativePath: ".Trash", Safety: "safe", Explanation: "Items already in Trash."},
 		{Category: "temp", RelativePath: "Library/Caches/TemporaryItems", Safety: "safe", Explanation: "Temporary items cache."},
 		{Category: "xcode", RelativePath: "Library/Developer/Xcode/DerivedData", Safety: "safe", Explanation: "Xcode build intermediates."},
-		{Category: "xcode", RelativePath: "Library/Developer/Xcode/iOS DeviceSupport", Safety: "review", Explanation: "Device symbols. Xcode re-downloads when needed."},
-		{Category: "xcode", RelativePath: "Library/Developer/Xcode/Archives", Safety: "review", Explanation: "Xcode archives. Keep if you need old builds."},
 		{Category: "xcode", RelativePath: "Library/Developer/CoreSimulator/Caches", Safety: "safe", Explanation: "Simulator caches."},
 		{Category: "packageManagers", RelativePath: ".npm/_cacache", Safety: "safe", Explanation: "npm package cache."},
 		{Category: "packageManagers", RelativePath: "Library/Caches/CocoaPods", Safety: "safe", Explanation: "CocoaPods cache."},
@@ -34,7 +31,6 @@ func Rules() []Rule {
 		{Category: "packageManagers", RelativePath: "Library/Caches/Homebrew", Safety: "safe", Explanation: "Homebrew download cache."},
 		{Category: "packageManagers", RelativePath: ".cache/yarn", Safety: "safe", Explanation: "Yarn cache."},
 		{Category: "packageManagers", RelativePath: "Library/Caches/Yarn", Safety: "safe", Explanation: "Yarn cache (Library)."},
-		{Category: "packageManagers", RelativePath: "Library/pnpm/store", Safety: "review", Explanation: "pnpm content-addressable store."},
 		{Category: "packageManagers", RelativePath: "Library/Caches/ms-playwright", Safety: "safe", Explanation: "Playwright browser downloads."},
 		{Category: "packageManagers", RelativePath: "Library/Caches/com.spotify.client", Safety: "safe", Explanation: "Spotify cache."},
 		{Category: "browsers", RelativePath: "Library/Caches/com.apple.Safari", Safety: "safe", Explanation: "Safari cache."},
@@ -43,13 +39,12 @@ func Rules() []Rule {
 		{Category: "browsers", RelativePath: "Library/Caches/Microsoft Edge", Safety: "safe", Explanation: "Edge cache."},
 		{Category: "browsers", RelativePath: "Library/Caches/Arc", Safety: "safe", Explanation: "Arc browser cache."},
 		{Category: "browsers", RelativePath: "Library/Caches/company.thebrowser.Browser", Safety: "safe", Explanation: "Arc/Dia browser cache."},
+		{Category: "browsers", RelativePath: "Library/Caches/BraveSoftware", Safety: "safe", Explanation: "Brave browser cache."},
 	}
 }
 
 var CategoryLabels = map[string]string{
 	"userCaches":      "App caches",
-	"logs":            "Logs",
-	"trash":           "Trash",
 	"temp":            "Temporary",
 	"xcode":           "Xcode",
 	"packageManagers": "Developer",

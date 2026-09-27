@@ -29,3 +29,16 @@ func TestHomeCacheOk(t *testing.T) {
 		t.Fatal("classify safe")
 	}
 }
+
+func TestSensitiveHomeBlocked(t *testing.T) {
+	for _, p := range []string{
+		"/Users/test/Library/Keychains",
+		"/Users/test/Library/Caches/CloudKit",
+		"/Users/test/Library/Caches/CloudKit/foo",
+		"/Users/test/Pictures/Photos Library.photoslibrary/data",
+	} {
+		if !IsBlocked(p, Opts{}) {
+			t.Fatalf("expected blocked: %s", p)
+		}
+	}
+}
