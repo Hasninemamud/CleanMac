@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/Hasninemamud/CleanMac/internal/disk"
-	"github.com/Hasninemamud/CleanMac/internal/fsutil"
 )
 
 type Snapshot struct {
@@ -30,7 +29,7 @@ type Snapshot struct {
 
 func Collect() Snapshot {
 	host, _ := os.Hostname()
-	vol := disk.VolumeUsage(fsutil.HomeDir())
+	vol := disk.VolumeUsage("/")
 	memTotal, memUsed, memFree := memory()
 	return Snapshot{
 		Timestamp: time.Now().Unix(),
@@ -65,10 +64,12 @@ func memory() (total, used, free uint64) {
 	var freePages, inactive, speculative uint64
 	for _, line := range strings.Split(string(vm), "\n") {
 		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "page size of") {
-			fields := strings.Fields(line)
-			if len(fields) >= 4 {
-				if n, e := strconv.ParseUint(fields[3], 10, 64); e == nil {
+		// Header is "Mach Virtual Memory Statistics: (page size of 16384 bytes)".
+		if i := strings.Index(line, "page size of "); i >= 0 {
+			rest := line[i+len("page size of "):]
+			fields := strings.Fields(rest)
+			if len(fields) >= 1 {
+				if n, e := strconv.ParseUint(fields[0], 10, 64); e == nil && n > 0 {
 					pageSize = n
 				}
 			}

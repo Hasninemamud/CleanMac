@@ -111,9 +111,9 @@ struct OverviewPane: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack(spacing: 12) {
-                        metricCard("Used", ByteFormat.string(o.usedBytes))
-                        metricCard("Free", ByteFormat.string(o.freeBytes))
-                        metricCard("Total", ByteFormat.string(o.totalBytes))
+                        metricCard("Used", ByteFormat.disk(o.usedBytes))
+                        metricCard("Free", ByteFormat.disk(o.freeBytes))
+                        metricCard("Total", ByteFormat.disk(o.totalBytes))
                     }
                     VStack(spacing: 0) {
                         ForEach(["apps", "documents", "caches", "other"], id: \.self) { key in

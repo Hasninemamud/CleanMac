@@ -133,7 +133,7 @@ struct StatusView: View {
                             RingMeter(
                                 progress: diskRatio(m),
                                 label: "Disk",
-                                detail: "\(ByteFormat.string(m.diskFree)) free",
+                                detail: "\(ByteFormat.disk(m.diskFree)) free",
                                 color: meterColor(diskRatio(m))
                             )
                         }
@@ -148,8 +148,8 @@ struct StatusView: View {
                         BarMeter(
                             title: "Disk usage",
                             progress: diskRatio(m),
-                            leading: ByteFormat.string(m.diskUsed) + " used",
-                            trailing: ByteFormat.string(m.diskTotal) + " total",
+                            leading: ByteFormat.disk(m.diskUsed) + " used",
+                            trailing: ByteFormat.disk(m.diskTotal) + " total",
                             color: meterColor(diskRatio(m))
                         )
 

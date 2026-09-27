@@ -38,6 +38,66 @@ func VolumeUsage(mount string) Volume {
 	if mount == "" {
 		mount = "/"
 	}
+	if v, ok := volumeFromDiskutil(mount); ok {
+		return v
+	}
+	// Sealed system volume: try Data / root for container totals.
+	if mount != "/" {
+		if v, ok := volumeFromDiskutil("/"); ok {
+			return v
+		}
+	}
+	return volumeFromDF(mount)
+}
+
+// volumeFromDiskutil reads APFS container totals (matches System Settings Storage).
+// df's "Used" on / is only the sealed snapshot (~18GB), not container used.
+func volumeFromDiskutil(mount string) (Volume, bool) {
+	out, err := exec.Command("diskutil", "info", mount).Output()
+	if err != nil {
+		return Volume{}, false
+	}
+	var total, free int64
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		switch {
+		case strings.HasPrefix(line, "Container Total Space:"):
+			if n, ok := parseParenBytes(line); ok {
+				total = n
+			}
+		case strings.HasPrefix(line, "Container Free Space:"):
+			if n, ok := parseParenBytes(line); ok {
+				free = n
+			}
+		case total == 0 && strings.HasPrefix(line, "Disk Size:"):
+			if n, ok := parseParenBytes(line); ok {
+				total = n
+			}
+		}
+	}
+	if total <= 0 {
+		return Volume{}, false
+	}
+	if free < 0 {
+		free = 0
+	}
+	if free > total {
+		free = total
+	}
+	return Volume{Total: total, Free: free, Used: total - free}, true
+}
+
+func parseParenBytes(line string) (int64, bool) {
+	i := strings.Index(line, "(")
+	j := strings.Index(line, " Bytes)")
+	if i < 0 || j <= i {
+		return 0, false
+	}
+	n, err := strconv.ParseInt(strings.TrimSpace(line[i+1:j]), 10, 64)
+	return n, err == nil && n > 0
+}
+
+func volumeFromDF(mount string) Volume {
 	out, err := exec.Command("df", "-k", mount).Output()
 	if err != nil {
 		return Volume{}
@@ -51,9 +111,11 @@ func VolumeUsage(mount string) Volume {
 		return Volume{}
 	}
 	totalK, _ := strconv.ParseInt(parts[1], 10, 64)
-	usedK, _ := strconv.ParseInt(parts[2], 10, 64)
 	availK, _ := strconv.ParseInt(parts[3], 10, 64)
-	return Volume{Total: totalK * 1024, Free: availK * 1024, Used: usedK * 1024}
+	total := totalK * 1024
+	free := availK * 1024
+	// Use total−free: df "Used" on APFS system snapshot is not container used.
+	return Volume{Total: total, Free: free, Used: total - free}
 }
 
 func classifyHomeItem(name string) string {

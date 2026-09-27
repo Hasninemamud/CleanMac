@@ -164,13 +164,19 @@ final class CLIExecutor {
 }
 
 enum ByteFormat {
-    static func string(_ n: Int64) -> String {
-        if n < 1024 { return "\(n) B" }
+    /// Binary (1024) — memory, file sizes.
+    static func string(_ n: Int64) -> String { format(n, base: 1024) }
+
+    /// Decimal (1000) — disk capacity to match macOS System Settings.
+    static func disk(_ n: Int64) -> String { format(n, base: 1000) }
+
+    private static func format(_ n: Int64, base: Double) -> String {
+        if Double(n) < base { return "\(n) B" }
         let units = ["KB", "MB", "GB", "TB"]
-        var v = Double(n) / 1024
+        var v = Double(n) / base
         var i = 0
-        while v >= 1024 && i < units.count - 1 {
-            v /= 1024
+        while v >= base && i < units.count - 1 {
+            v /= base
             i += 1
         }
         if v >= 10 || i == 0 {
