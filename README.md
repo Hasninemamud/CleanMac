@@ -129,6 +129,7 @@ Optimize action IDs: `dns`, `mdutil`, `finder`, `quarantine`. The `dns` action n
 ```bash
 make test         # go test ./internal/...
 make selfcheck    # safety tests + CLI JSON contract + blocked-path check
+make test-website # ab load test + Playwright browser smoke
 make clean        # remove build output
 ```
 
