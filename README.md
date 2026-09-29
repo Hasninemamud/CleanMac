@@ -10,10 +10,15 @@
 </p>
 
 <p align="center">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT"></a>
+</p>
+
+<p align="center">
   <a href="https://github.com/Hasninemamud/CleanMac/releases/latest">Download</a> ·
   <a href="#cli-usage">CLI</a> ·
   <a href="#build-from-source">Build from source</a> ·
-  <a href="#safety">Safety</a>
+  <a href="#safety">Safety</a> ·
+  <a href="#license">License</a>
 </p>
 
 ---
@@ -163,4 +168,6 @@ memory-bank/        project notes and context
 
 ## License
 
-[MIT](LICENSE) © A.K.M Hasnine Mamud
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+Released under the [MIT License](LICENSE). © 2026 A.K.M Hasnine Mamud
