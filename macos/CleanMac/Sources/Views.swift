@@ -53,20 +53,52 @@ struct AppsView: View {
     var body: some View {
         @Bindable var state = state
         VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 12) {
-                Button {
-                    state.selected = Set(state.orphans.map(\.path))
-                } label: {
-                    Text("Select orphaned leftovers")
+            HStack(spacing: 4) {
+                ForEach(AppState.AppsSegment.allCases) { s in
+                    SegmentPill(title: s.rawValue, selected: state.appsSegment == s) {
+                        state.appsSegment = s
+                        state.selected.removeAll()
+                    }
                 }
-                .buttonStyle(SoftButtonStyle())
-                .disabled(state.orphans.isEmpty)
                 Spacer()
-                Text("\(state.orphans.count) orphans · \(state.apps.count) apps")
+            }
+            .padding(3)
+            .background(Color.black.opacity(0.22))
+            .clipShape(Capsule())
+
+            HStack(spacing: 12) {
+                if state.appsSegment == .caches || state.appsSegment == .leftovers {
+                    Button {
+                        state.selected = Set(state.currentItems.map(\.path))
+                    } label: {
+                        Text("Select all")
+                    }
+                    .buttonStyle(SoftButtonStyle())
+                    .disabled(state.currentItems.isEmpty)
+                } else if state.appsSegment == .orphans || state.appsSegment == .all {
+                    Button {
+                        state.selected = Set(state.orphans.map(\.path))
+                    } label: {
+                        Text("Select orphaned leftovers")
+                    }
+                    .buttonStyle(SoftButtonStyle())
+                    .disabled(state.orphans.isEmpty)
+                }
+                Spacer()
+                Text(summary)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundColor(Theme.muted)
             }
             ItemTable(items: state.currentItems, selected: $state.selected)
+        }
+    }
+
+    private var summary: String {
+        switch state.appsSegment {
+        case .caches: return "\(state.appCacheItems.count) cache items"
+        case .leftovers: return "\(state.appLeftoverItems.count) leftovers"
+        case .orphans: return "\(state.orphans.count) orphans"
+        case .all: return "\(state.orphans.count) orphans · \(state.apps.count) apps"
         }
     }
 }
@@ -278,7 +310,7 @@ struct ItemRow: View {
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(Theme.ink)
                     .lineLimit(1)
-                Text(item.path)
+                Text(item.explanation ?? item.path)
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(Theme.muted)
                     .lineLimit(1)
@@ -288,6 +320,15 @@ struct ItemRow: View {
             .layoutPriority(1)
 
             SafetyBadge(safety: item.safety)
+            if item.isCacheLeftover {
+                Text("CACHE")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(Theme.bg)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 3)
+                    .background(Theme.accent)
+                    .clipShape(Capsule())
+            }
 
             Text(ByteFormat.string(item.byteSize))
                 .font(.system(size: 12, weight: .semibold, design: .rounded))

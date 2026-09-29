@@ -27,7 +27,7 @@ struct BrandLogo: View {
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fill)
             } else {
-                RoundedRectangle(cornerRadius: size * 0.25, style: .continuous)
+                Circle()
                     .fill(Theme.accent)
                     .overlay {
                         Text("C")
@@ -37,7 +37,7 @@ struct BrandLogo: View {
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.25, style: .continuous))
+        .clipShape(Circle())
     }
 
     private var bundleLogo: NSImage? {

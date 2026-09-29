@@ -19,7 +19,7 @@ import (
 	"github.com/Hasninemamud/CleanMac/internal/status"
 )
 
-const version = "2.1.1"
+const version = "2.1.2"
 
 func main() {
 	if len(os.Args) < 2 {

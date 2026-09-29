@@ -5,7 +5,7 @@
 - Go kernel `cmd/cleanmac`: junk, installers, purge, apps, analyze, optimize, status
 - SwiftUI app `macos/CleanMac` with dark UI, logo, status meters
 - Shell: install / launch / build-app / selfcheck
-- Release **2.1.1** (DMG via `make package` / `scripts/package.sh`)
+- Release **2.1.2** (round logo + Apps Caches tab; DMG via `make package`)
 - Removed Electron / Node / `src/` JS tree
 
 ## Next

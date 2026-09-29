@@ -168,7 +168,7 @@ struct ContentView: View {
     private var pageSubtitle: String {
         switch state.section {
         case .clean: return "Safe caches only — review before Trash"
-        case .apps: return "Installed apps and orphaned leftovers"
+        case .apps: return "App caches and Library leftovers"
         case .analyze: return "Disk map, large files, and duplicates"
         case .optimize: return "Light maintenance — confirm before running"
         case .status: return "Live meters · refreshes every 2s"

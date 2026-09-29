@@ -134,6 +134,19 @@ func looksLikeAppData(entryName string) bool {
 	return len(token) >= 5
 }
 
+func categoryForRoot(root string) string {
+	switch {
+	case strings.Contains(root, "Caches"):
+		return "cache"
+	case strings.Contains(root, "Logs"):
+		return "logs"
+	case strings.Contains(root, "Preferences"):
+		return "preferences"
+	default:
+		return "leftover"
+	}
+}
+
 type AppResult struct {
 	Path          string         `json:"path"`
 	Name          string         `json:"name"`
@@ -190,16 +203,31 @@ func Scan() ScanResult {
 				continue
 			}
 			seen[full] = true
+			intended := "review"
+			explanation := "Leftover in " + root
+			if strings.Contains(root, "Caches") {
+				intended = "safe"
+				explanation = "App cache · " + root
+			} else if strings.Contains(root, "Logs") {
+				intended = "safe"
+				explanation = "App logs · " + root
+			}
 			item := jsonout.Item{
 				Path: full, Name: ent.Name(), ByteSize: byteSize,
-				Safety: safety.Classify(full, "review", safety.Opts{}),
-				Kind: "leftover", Root: root, Explanation: "Leftover in " + root,
+				Safety: safety.Classify(full, intended, safety.Opts{}),
+				Kind: "leftover", Root: root, Explanation: explanation,
+				IsDirectory: info.IsDir(),
+				Category:    categoryForRoot(root),
 			}
 			if len(matches) == 1 {
 				byApp[matches[0].Path] = append(byApp[matches[0].Path], item)
 			} else if len(matches) == 0 {
 				item.Orphan = true
-				item.Explanation = "Orphaned leftover · " + root
+				if strings.Contains(root, "Caches") {
+					item.Explanation = "Orphaned app cache · " + root
+				} else {
+					item.Explanation = "Orphaned leftover · " + root
+				}
 				orphans = append(orphans, item)
 			}
 		}

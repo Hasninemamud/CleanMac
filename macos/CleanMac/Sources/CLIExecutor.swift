@@ -18,6 +18,15 @@ struct ScanItem: Identifiable, Codable, Hashable {
     var leftoverBytes: Int64?
     var appBytes: Int64?
     var bundleId: String?
+    var kind: String?
+    var root: String?
+
+    var isCacheLeftover: Bool {
+        if let category, category.localizedCaseInsensitiveContains("cache") { return true }
+        if let root, root.localizedCaseInsensitiveContains("Caches") { return true }
+        return path.localizedCaseInsensitiveContains("/Library/Caches/")
+            || path.localizedCaseInsensitiveContains("/Caches/")
+    }
 }
 
 struct ItemsResponse: Codable {

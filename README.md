@@ -41,14 +41,14 @@ make install
 ## Distribute
 
 ```bash
-make package   # → dist/CleanMac-2.1.1-arm64.dmg (+ zip)
+make package   # → dist/CleanMac-2.1.2-arm64.dmg (+ zip)
 ```
 
 Publish a GitHub release:
 
 ```bash
-gh release create v2.1.1 dist/CleanMac-2.1.1-arm64.dmg dist/CleanMac-2.1.1-arm64.zip \
-  --title "CleanMac 2.1.1" --notes "Native Go + SwiftUI build."
+gh release create v2.1.2 dist/CleanMac-2.1.2-arm64.dmg dist/CleanMac-2.1.2-arm64.zip \
+  --title "CleanMac 2.1.2" --notes "Native Go + SwiftUI build."
 ```
 
 If a **downloaded** app says it is “damaged”, Brave/Chrome set the quarantine flag. Clear it:

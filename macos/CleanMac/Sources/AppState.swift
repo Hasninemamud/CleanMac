@@ -7,6 +7,7 @@ final class AppState {
     var section: NavSection = .clean
     var cleanSegment: CleanSegment = .junk
     var analyzeSegment: AnalyzeSegment = .overview
+    var appsSegment: AppsSegment = .caches
     var statusLine = "Ready"
     var busy = false
     var errorMessage: String?
@@ -47,6 +48,25 @@ final class AppState {
         var id: String { rawValue }
     }
 
+    enum AppsSegment: String, CaseIterable, Identifiable {
+        case caches = "Caches"
+        case leftovers = "Leftovers"
+        case orphans = "Orphans"
+        case all = "All"
+        var id: String { rawValue }
+    }
+
+    /// Flat leftover rows for installed apps (excludes the .app bundle itself).
+    var appLeftoverItems: [ScanItem] {
+        apps.flatMap { $0.leftovers ?? [] }
+    }
+
+    var appCacheItems: [ScanItem] {
+        let linked = appLeftoverItems.filter(\.isCacheLeftover)
+        let orphanCaches = orphans.filter(\.isCacheLeftover)
+        return (linked + orphanCaches).sorted { $0.byteSize > $1.byteSize }
+    }
+
     var currentItems: [ScanItem] {
         switch section {
         case .clean:
@@ -56,10 +76,19 @@ final class AppState {
             case .purge: return purgeItems
             }
         case .apps:
-            return orphans + apps.flatMap { app in
-                var rows = [app]
-                rows.append(contentsOf: app.leftovers ?? [])
-                return rows
+            switch appsSegment {
+            case .caches:
+                return appCacheItems
+            case .leftovers:
+                return appLeftoverItems.sorted { $0.byteSize > $1.byteSize }
+            case .orphans:
+                return orphans
+            case .all:
+                return orphans + apps.flatMap { app in
+                    var rows = [app]
+                    rows.append(contentsOf: app.leftovers ?? [])
+                    return rows
+                }
             }
         case .analyze:
             switch analyzeSegment {
