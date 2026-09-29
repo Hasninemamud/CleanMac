@@ -10,6 +10,7 @@ ARCH="$(uname -m)"
 [[ "$ARCH" == "x86_64" ]] && ARCH="x64"
 DMG_NAME="CleanMac-${VERSION}-${ARCH}.dmg"
 ZIP_NAME="CleanMac-${VERSION}-${ARCH}.zip"
+BG="$ROOT/packaging/dmg-background.png"
 
 make -C "$ROOT" app
 mkdir -p "$DIST"
@@ -19,47 +20,34 @@ STAGE="$DIST/stage"
 rm -rf "$STAGE"
 mkdir -p "$STAGE"
 cp -R "$APP" "$STAGE/CleanMac.app"
-cat > "$STAGE/How to open if blocked.txt" <<EOF
-If macOS says CleanMac is "damaged", the browser quarantined the download.
-
-Fix (Terminal):
-
-  xattr -cr /Applications/CleanMac.app
-
-Or after mounting this DMG:
-
-  xattr -cr /Volumes/CleanMac/CleanMac.app
-
-Then drag CleanMac to Applications and open it.
-Developer ID notarization removes this permanently.
-EOF
 
 rm -f "$DIST/$ZIP_NAME" "$DIST/$DMG_NAME"
 ditto -c -k --keepParent "$STAGE/CleanMac.app" "$DIST/$ZIP_NAME"
 
 ICNS="$APP/Contents/Resources/AppIcon.icns"
+# Window 660×420; background is 1320×840 (@2x). Icons sit on the gold pads.
 CREATE_DMG_ARGS=(
   --volname "CleanMac"
   --window-pos 200 120
-  --window-size 540 380
+  --window-size 660 420
   --icon-size 128
-  --icon "CleanMac.app" 140 180
+  --text-size 12
+  --icon "CleanMac.app" 180 185
   --hide-extension "CleanMac.app"
-  --app-drop-link 380 180
+  --app-drop-link 480 185
   --no-internet-enable
 )
+[[ -f "$BG" ]] && CREATE_DMG_ARGS+=(--background "$BG")
 [[ -f "$ICNS" ]] && CREATE_DMG_ARGS+=(--volicon "$ICNS")
 
-# create-dmg writes into cwd; run from dist with a staging folder as source.
 (
   cd "$DIST"
   rm -f "$DMG_NAME"
   create-dmg "${CREATE_DMG_ARGS[@]}" "$DMG_NAME" "$STAGE"
 )
 
-# create-dmg sometimes leaves rw. / temporary names
 if [[ ! -f "$DIST/$DMG_NAME" ]]; then
-  found="$(ls -1 "$DIST"/*.dmg 2>/dev/null | head -1 || true)"
+  found="$(ls -1 "$DIST"/CleanMac-"${VERSION}"*.dmg 2>/dev/null | head -1 || true)"
   [[ -n "$found" ]] && mv "$found" "$DIST/$DMG_NAME"
 fi
 
