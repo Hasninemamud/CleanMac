@@ -5,7 +5,7 @@ BINARY := $(BIN_DIR)/cleanmac
 APP_DIR := macos
 APP_NAME := CleanMac
 
-.PHONY: all build test selfcheck install app package clean
+.PHONY: all build test selfcheck install app package test-website clean
 
 all: build
 
@@ -27,6 +27,9 @@ app: build
 
 package: app
 	@bash scripts/package.sh
+
+test-website:
+	@bash scripts/test-website.sh
 
 clean:
 	rm -f $(BINARY)

@@ -52,5 +52,8 @@ if [[ ! -f "$DIST/$DMG_NAME" ]]; then
 fi
 
 rm -rf "$STAGE"
-ls -lh "$DIST/$DMG_NAME" "$DIST/$ZIP_NAME"
-echo "Packaged $DIST/$DMG_NAME"
+# Stable alias so website /releases/latest/download/CleanMac-arm64.dmg always works.
+cp -f "$DIST/$DMG_NAME" "$DIST/CleanMac-${ARCH}.dmg"
+cp -f "$DIST/$ZIP_NAME" "$DIST/CleanMac-${ARCH}.zip"
+ls -lh "$DIST/$DMG_NAME" "$DIST/$ZIP_NAME" "$DIST/CleanMac-${ARCH}.dmg"
+echo "Packaged $DIST/$DMG_NAME (+ CleanMac-${ARCH}.dmg alias)"
