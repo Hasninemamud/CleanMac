@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"
 APP="$ROOT/macos/CleanMac.app"
-VERSION="${CLEANMAC_VERSION:-2.2.0}"
+VERSION="${CLEANMAC_VERSION:-2.2.1}"
 ARCH="$(uname -m)"
 [[ "$ARCH" == "x86_64" ]] && ARCH="x64"
 DMG_NAME="CleanMac-${VERSION}-${ARCH}.dmg"
@@ -55,7 +55,9 @@ if [[ ! -f "$DIST/$DMG_NAME" ]]; then
 fi
 
 rm -rf "$STAGE"
-# Stable alias so website /releases/latest/download/CleanMac-arm64.dmg always works.
+# Stable names so website /releases/latest/download/CleanMac-arm64.dmg always works.
+# rm first so a leftover symlink isn't followed/overwritten in place.
+rm -f "$DIST/CleanMac-${ARCH}.dmg" "$DIST/CleanMac-${ARCH}.zip"
 cp -f "$DIST/$DMG_NAME" "$DIST/CleanMac-${ARCH}.dmg"
 cp -f "$DIST/$ZIP_NAME" "$DIST/CleanMac-${ARCH}.zip"
 ls -lh "$DIST/$DMG_NAME" "$DIST/$ZIP_NAME" "$DIST/CleanMac-${ARCH}.dmg"
