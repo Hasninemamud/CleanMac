@@ -29,11 +29,11 @@ struct BrandLogo: View {
                     .aspectRatio(contentMode: .fill)
             } else {
                 RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
-                    .fill(Color(red: 0.290, green: 0.486, blue: 0.349)) // #4A7C59
+                    .fill(Theme.bg) // cream
                     .overlay {
                         Text("C")
                             .font(.system(size: size * 0.45, weight: .bold))
-                            .foregroundColor(Color(red: 0.102, green: 0.227, blue: 0.157)) // #1A3A28
+                            .foregroundColor(Theme.ink)
                     }
             }
         }
