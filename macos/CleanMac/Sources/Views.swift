@@ -47,16 +47,16 @@ struct CleanView: View {
     }
 }
 
-struct AppsView: View {
+struct SoftwareView: View {
     @Environment(AppState.self) private var state
 
     var body: some View {
         @Bindable var state = state
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 4) {
-                ForEach(AppState.AppsSegment.allCases) { s in
-                    SegmentPill(title: s.rawValue, selected: state.appsSegment == s) {
-                        state.appsSegment = s
+                ForEach(AppState.SoftwareSegment.allCases) { s in
+                    SegmentPill(title: s.rawValue, selected: state.softwareSegment == s) {
+                        state.softwareSegment = s
                         state.selected.removeAll()
                     }
                 }
@@ -67,40 +67,99 @@ struct AppsView: View {
             .clipShape(Capsule())
 
             HStack(spacing: 12) {
-                if state.appsSegment == .caches || state.appsSegment == .leftovers {
-                    Button {
-                        state.selected = Set(state.currentItems.map(\.path))
-                    } label: {
-                        Text("Select all")
-                    }
-                    .buttonStyle(SoftButtonStyle())
-                    .disabled(state.currentItems.isEmpty)
-                } else if state.appsSegment == .orphans || state.appsSegment == .all {
-                    Button {
-                        state.selected = Set(state.orphans.map(\.path))
-                    } label: {
-                        Text("Select orphaned leftovers")
-                    }
-                    .buttonStyle(SoftButtonStyle())
-                    .disabled(state.orphans.isEmpty)
+                if state.softwareSegment == .caches || state.softwareSegment == .leftovers {
+                    Button { state.selected = Set(state.currentItems.map(\.path)) } label: { Text("Select all") }
+                        .buttonStyle(SoftButtonStyle())
+                        .disabled(state.currentItems.isEmpty)
+                } else if state.softwareSegment == .orphans {
+                    Button { state.selected = Set(state.orphans.map(\.path)) } label: { Text("Select orphans") }
+                        .buttonStyle(SoftButtonStyle())
+                        .disabled(state.orphans.isEmpty)
+                } else if state.softwareSegment == .uninstall {
+                    Button { state.selected = Set(state.apps.map(\.path)) } label: { Text("Select apps") }
+                        .buttonStyle(SoftButtonStyle())
+                        .disabled(state.apps.isEmpty)
                 }
                 Spacer()
                 Text(summary)
                     .font(.system(size: 12, weight: .medium, design: .rounded))
                     .foregroundColor(Theme.muted)
             }
-            ItemTable(items: state.currentItems, selected: $state.selected)
+
+            switch state.softwareSegment {
+            case .updates:
+                updatesList
+            case .startup:
+                startupList
+            default:
+                ItemTable(items: state.currentItems, selected: $state.selected)
+            }
         }
     }
 
     private var summary: String {
-        switch state.appsSegment {
+        switch state.softwareSegment {
         case .caches: return "\(state.appCacheItems.count) cache items"
         case .leftovers: return "\(state.appLeftoverItems.count) leftovers"
         case .orphans: return "\(state.orphans.count) orphans"
-        case .all: return "\(state.orphans.count) orphans · \(state.apps.count) apps"
+        case .uninstall: return "\(state.apps.count) apps — select to Trash"
+        case .updates: return "\(state.updates.count) update sources"
+        case .startup: return "\(state.startupItems.count) startup items"
         }
     }
+
+    private var updatesList: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(state.updates) { u in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(u.name).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.ink)
+                            Text(u.detail ?? u.source).font(.system(size: 10)).foregroundColor(Theme.muted)
+                        }
+                        Spacer()
+                        Text(u.source).font(.system(size: 10, weight: .bold)).foregroundColor(Theme.accent)
+                        Button("Open") { state.openUpdate(u) }.buttonStyle(SoftButtonStyle())
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 9)
+                    Divider().background(Theme.line)
+                }
+            }
+            .background(Theme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+    }
+
+    private var startupList: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(state.startupItems) { s in
+                    HStack {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(s.name).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.ink)
+                            Text(s.path).font(.system(size: 10)).foregroundColor(Theme.muted).lineLimit(1)
+                        }
+                        Spacer()
+                        Toggle("", isOn: Binding(
+                            get: { s.enabled },
+                            set: { on in Task { await state.setStartup(path: s.path, enabled: on) } }
+                        ))
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                        .controlSize(.mini)
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 9)
+                    Divider().background(Theme.line)
+                }
+            }
+            .background(Theme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+    }
+}
+
+struct AppsView: View {
+    var body: some View { SoftwareView() }
 }
 
 struct AnalyzeView: View {
@@ -126,10 +185,77 @@ struct AnalyzeView: View {
             switch state.analyzeSegment {
             case .overview:
                 OverviewPane(overview: state.overview)
+            case .map:
+                TreemapPane()
             case .large:
                 ItemTable(items: state.large, selected: $state.selected)
             case .dupes:
                 DupesPane(groups: state.dupes, selected: $state.selected)
+            }
+        }
+    }
+}
+
+struct TreemapPane: View {
+    @Environment(AppState.self) private var state
+
+    var body: some View {
+        @Bindable var state = state
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Button("Home") {
+                    state.treemapPath = NSHomeDirectory()
+                    Task { await state.scan() }
+                }
+                .buttonStyle(SoftButtonStyle())
+                Text(state.treemapPath)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(Theme.muted)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Spacer()
+            }
+            if let node = state.treemap {
+                let total = max(node.byteSize, 1)
+                ScrollView {
+                    VStack(spacing: 6) {
+                        ForEach(node.children ?? []) { child in
+                            Button {
+                                if child.isDirectory == true {
+                                    state.treemapPath = child.path
+                                    Task { await state.scan() }
+                                } else {
+                                    state.reveal(child.path)
+                                }
+                            } label: {
+                                HStack(spacing: 10) {
+                                    GeometryReader { geo in
+                                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                            .fill(Theme.accent.opacity(0.85))
+                                            .frame(width: max(4, geo.size.width * CGFloat(child.byteSize) / CGFloat(total)))
+                                    }
+                                    .frame(height: 18)
+                                    Text(child.name)
+                                        .font(.system(size: 12, weight: .semibold))
+                                        .foregroundColor(Theme.ink)
+                                        .frame(width: 140, alignment: .leading)
+                                        .lineLimit(1)
+                                    Text(ByteFormat.disk(child.byteSize))
+                                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                                        .foregroundColor(Theme.muted)
+                                        .frame(width: 72, alignment: .trailing)
+                                }
+                                .padding(.vertical, 4)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(12)
+                    .background(Theme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                }
+            } else {
+                EmptyState(title: "Folder map", systemImage: "square.grid.3x3", message: "Scan a folder to drill into disk usage.")
             }
         }
     }

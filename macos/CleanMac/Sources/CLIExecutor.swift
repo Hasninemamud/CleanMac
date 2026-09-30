@@ -80,6 +80,69 @@ struct OptimizeAction: Identifiable, Codable {
     var detail: String?
 }
 
+struct TreeNode: Identifiable, Codable, Hashable {
+    var id: String { path }
+    let path: String
+    let name: String
+    let byteSize: Int64
+    var isDirectory: Bool?
+    var children: [TreeNode]?
+}
+
+struct UpdateItem: Identifiable, Codable, Hashable {
+    var id: String
+    let name: String
+    let source: String
+    var current: String?
+    var latest: String?
+    var detail: String?
+}
+
+struct UpdatesResponse: Codable {
+    let items: [UpdateItem]
+}
+
+struct StartupItem: Identifiable, Codable, Hashable {
+    var id: String
+    let name: String
+    let path: String
+    let kind: String
+    let enabled: Bool
+    var detail: String?
+}
+
+struct StartupResponse: Codable {
+    let items: [StartupItem]
+}
+
+struct WhitelistResponse: Codable {
+    let paths: [String]
+}
+
+struct DoctorCheck: Identifiable, Codable, Hashable {
+    var id: String
+    let title: String
+    let status: String
+    let detail: String
+}
+
+struct DoctorResponse: Codable {
+    let checks: [DoctorCheck]
+}
+
+struct HistoryEntry: Identifiable, Codable, Hashable {
+    var id: String { "\(time)-\(action)-\(paths?.first ?? "")" }
+    let time: String
+    let action: String
+    var paths: [String]?
+    var detail: String?
+    var bytes: Int64?
+}
+
+struct HistoryResponse: Codable {
+    let entries: [HistoryEntry]
+}
+
 struct ProcessRow: Identifiable, Codable, Hashable {
     var id: Int { pid }
     let pid: Int

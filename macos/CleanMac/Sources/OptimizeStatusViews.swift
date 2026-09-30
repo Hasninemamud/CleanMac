@@ -267,6 +267,28 @@ struct StatusView: View {
                     slices: appCPUSlices(m)
                 )
             }
+
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Top processes")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(Theme.muted)
+                    .padding(.bottom, 8)
+                ForEach(Array((m.processes ?? []).prefix(8))) { p in
+                    HStack {
+                        Text(p.name).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.ink).lineLimit(1)
+                        Spacer()
+                        Text(String(format: "%.0f%%", p.cpu)).foregroundColor(Theme.muted).monospacedDigit()
+                        Text(String(format: "%.0f MB", p.memMB)).foregroundColor(Theme.muted).monospacedDigit().frame(width: 64, alignment: .trailing)
+                        Button("Quit") { state.quitProcess(pid: p.pid) }
+                            .buttonStyle(SoftButtonStyle())
+                    }
+                    .padding(.vertical, 4)
+                    Divider().background(Theme.line)
+                }
+            }
+            .padding(12)
+            .background(Theme.surface)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
     }
 

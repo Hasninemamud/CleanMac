@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import IOKit.pwr_mgt
 
 struct ContentView: View {
     @Environment(AppState.self) private var state
@@ -25,7 +26,6 @@ struct ContentView: View {
             }
         } message: {
             Text("\(state.selected.count) items · \(ByteFormat.string(state.selectedBytes))")
-                .foregroundStyle(Theme.ink)
         }
         .alert("Error", isPresented: Binding(
             get: { state.errorMessage != nil },
@@ -35,12 +35,20 @@ struct ContentView: View {
         } message: {
             Text(state.errorMessage ?? "")
         }
+        .sheet(isPresented: $state.showSettings) {
+            SettingsView()
+                .environment(state)
+                .frame(width: 560, height: 480)
+        }
+        .sheet(isPresented: $state.showCleanScreen) {
+            CleanScreenView { state.showCleanScreen = false }
+                .frame(minWidth: 800, minHeight: 600)
+        }
         .onAppear {
             NSApp.appearance = NSAppearance(named: .darkAqua)
         }
     }
 
-    // Brand | centered nav | status  — no competing maxWidth infinity
     private var topBar: some View {
         ZStack {
             Theme.rail
@@ -55,17 +63,24 @@ struct ContentView: View {
 
                 Spacer(minLength: 8)
 
+                Button {
+                    state.showSettings = true
+                    Task { await state.loadSettingsData() }
+                } label: {
+                    Image(systemName: "gearshape")
+                        .foregroundColor(Theme.muted)
+                }
+                .buttonStyle(.plain)
+                .help("Settings")
+
                 Text(state.statusLine)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(state.busy ? Theme.accent : Theme.muted)
                     .lineLimit(1)
-                    .truncationMode(.tail)
                     .frame(maxWidth: 140, alignment: .trailing)
 
                 if state.busy {
-                    ProgressView()
-                        .controlSize(.mini)
-                        .tint(Theme.accent)
+                    ProgressView().controlSize(.mini).tint(Theme.accent)
                 }
             }
             .padding(.leading, 72)
@@ -101,19 +116,23 @@ struct ContentView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 12)
-            if state.busy {
-                Button("Stop") {
-                    state.stop()
+            if state.section == .status {
+                Button(state.keepAwake ? "Allow sleep" : "Keep awake") {
+                    state.toggleKeepAwake()
                 }
                 .buttonStyle(SoftButtonStyle())
-                .fixedSize()
+                Button("Clean screen") { state.showCleanScreen = true }
+                    .buttonStyle(SoftButtonStyle())
+            }
+            if state.busy {
+                Button("Stop") { state.stop() }
+                    .buttonStyle(SoftButtonStyle())
             }
             Button(scanLabel) {
                 Task { await state.scan() }
             }
             .buttonStyle(PrimaryButtonStyle(disabled: state.busy))
             .disabled(state.busy)
-            .fixedSize()
         }
         .padding(.horizontal, 22)
         .padding(.top, 14)
@@ -125,7 +144,7 @@ struct ContentView: View {
         Group {
             switch state.section {
             case .clean: CleanView()
-            case .apps: AppsView()
+            case .software: SoftwareView()
             case .analyze: AnalyzeView()
             case .optimize: OptimizeView()
             case .status: StatusView()
@@ -142,6 +161,14 @@ struct ContentView: View {
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(Theme.ink)
             Spacer()
+            Button("Whitelist") {
+                Task {
+                    for p in state.selected { await state.addWhitelist(p) }
+                    state.selected.removeAll()
+                    state.statusLine = "Added to whitelist"
+                }
+            }
+            .buttonStyle(SoftButtonStyle())
             Button("Clear") { state.selected.removeAll() }
                 .buttonStyle(SoftButtonStyle())
             Button("Move to Trash") { state.confirmTrash = true }
@@ -155,23 +182,15 @@ struct ContentView: View {
         }
     }
 
-    private var pageTitle: String {
-        switch state.section {
-        case .clean: return "Clean"
-        case .apps: return "Apps"
-        case .analyze: return "Analyze"
-        case .optimize: return "Optimize"
-        case .status: return "Status"
-        }
-    }
+    private var pageTitle: String { state.section.rawValue }
 
     private var pageSubtitle: String {
         switch state.section {
-        case .clean: return "Safe caches only — review before Trash"
-        case .apps: return "App caches and Library leftovers"
-        case .analyze: return "Disk map, large files, and duplicates"
-        case .optimize: return "Light maintenance — confirm before running"
-        case .status: return "Live meters · refreshes every 2s"
+        case .clean: return "Caches, logs, installers, artifacts — review before Trash"
+        case .software: return "Caches, leftovers, uninstall, updates, startup"
+        case .analyze: return "Disk map, treemap drill-down, large files, duplicates"
+        case .optimize: return "Maintenance catalog — preview, then confirm"
+        case .status: return "Live meters · menu bar HUD · utilities"
         }
     }
 
@@ -183,15 +202,40 @@ struct ContentView: View {
             case .installers: return "Find installers"
             case .purge: return "Find artifacts"
             }
-        case .apps: return "Scan leftovers"
+        case .software:
+            switch state.softwareSegment {
+            case .updates: return "Check updates"
+            case .startup: return "Scan startup"
+            default: return "Scan software"
+            }
         case .analyze:
             switch state.analyzeSegment {
             case .overview: return "Scan disk map"
+            case .map: return "Scan folder"
             case .large: return "Scan ≥50 MB"
             case .dupes: return "Find duplicates"
             }
         case .optimize: return "Preview"
         case .status: return "Refresh"
         }
+    }
+}
+
+struct CleanScreenView: View {
+    var onClose: () -> Void
+    var body: some View {
+        ZStack {
+            Theme.bg.ignoresSafeArea()
+            VStack(spacing: 16) {
+                Text("Clean screen")
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundColor(Theme.muted)
+                Text("Press Esc or click Close")
+                    .foregroundColor(Theme.muted.opacity(0.7))
+                Button("Close", action: onClose)
+                    .buttonStyle(PrimaryButtonStyle())
+            }
+        }
+        .onExitCommand(perform: onClose)
     }
 }

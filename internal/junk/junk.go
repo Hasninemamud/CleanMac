@@ -8,6 +8,7 @@ import (
 	"github.com/Hasninemamud/CleanMac/internal/fsutil"
 	"github.com/Hasninemamud/CleanMac/internal/jsonout"
 	"github.com/Hasninemamud/CleanMac/internal/safety"
+	"github.com/Hasninemamud/CleanMac/internal/whitelist"
 )
 
 type Rule struct {
@@ -18,9 +19,10 @@ type Rule struct {
 }
 
 func Rules() []Rule {
-	// Cache / rebuildable intermediates only — no Trash, logs, or archives.
 	return []Rule{
 		{Category: "userCaches", RelativePath: "Library/Caches", Safety: "safe", Explanation: "User application caches. Apps rebuild them."},
+		{Category: "logs", RelativePath: "Library/Logs", Safety: "safe", Explanation: "Application logs in your home Library."},
+		{Category: "trash", RelativePath: ".Trash", Safety: "review", Explanation: "Items already in Trash — emptying is optional."},
 		{Category: "temp", RelativePath: "Library/Caches/TemporaryItems", Safety: "safe", Explanation: "Temporary items cache."},
 		{Category: "xcode", RelativePath: "Library/Developer/Xcode/DerivedData", Safety: "safe", Explanation: "Xcode build intermediates."},
 		{Category: "xcode", RelativePath: "Library/Developer/CoreSimulator/Caches", Safety: "safe", Explanation: "Simulator caches."},
@@ -32,7 +34,7 @@ func Rules() []Rule {
 		{Category: "packageManagers", RelativePath: ".cache/yarn", Safety: "safe", Explanation: "Yarn cache."},
 		{Category: "packageManagers", RelativePath: "Library/Caches/Yarn", Safety: "safe", Explanation: "Yarn cache (Library)."},
 		{Category: "packageManagers", RelativePath: "Library/Caches/ms-playwright", Safety: "safe", Explanation: "Playwright browser downloads."},
-		{Category: "packageManagers", RelativePath: "Library/Caches/com.spotify.client", Safety: "safe", Explanation: "Spotify cache."},
+		{Category: "misc", RelativePath: "Library/Caches/com.spotify.client", Safety: "safe", Explanation: "Spotify cache."},
 		{Category: "browsers", RelativePath: "Library/Caches/com.apple.Safari", Safety: "safe", Explanation: "Safari cache."},
 		{Category: "browsers", RelativePath: "Library/Caches/Google/Chrome", Safety: "safe", Explanation: "Chrome cache."},
 		{Category: "browsers", RelativePath: "Library/Caches/Firefox", Safety: "safe", Explanation: "Firefox cache."},
@@ -45,10 +47,13 @@ func Rules() []Rule {
 
 var CategoryLabels = map[string]string{
 	"userCaches":      "App caches",
+	"logs":            "Logs",
+	"trash":           "Trash",
 	"temp":            "Temporary",
 	"xcode":           "Xcode",
 	"packageManagers": "Developer",
 	"browsers":        "Browsers",
+	"misc":            "Misc",
 	"other":           "Other",
 }
 
@@ -57,6 +62,9 @@ func enumerateTopLevel(target string, rule Rule) []jsonout.Item {
 	if err != nil {
 		size := fsutil.DirectorySize(target, 200_000)
 		if size <= 0 {
+			return nil
+		}
+		if whitelist.Excludes(target) {
 			return nil
 		}
 		s := safety.Classify(target, rule.Safety, safety.Opts{})
@@ -75,12 +83,11 @@ func enumerateTopLevel(target string, rule Rule) []jsonout.Item {
 		if err != nil {
 			continue
 		}
-		if safety.IsBlocked(full, safety.Opts{}) || info.Mode()&os.ModeSymlink != 0 {
+		if whitelist.Excludes(full) || safety.IsBlocked(full, safety.Opts{}) || info.Mode()&os.ModeSymlink != 0 {
 			continue
 		}
 		var size int64
-		var modifiedAt float64
-		modifiedAt = float64(info.ModTime().UnixMilli())
+		modifiedAt := float64(info.ModTime().UnixMilli())
 		if ent.IsDir() {
 			size = fsutil.DirectorySize(full, 200_000)
 		} else if info.Mode().IsRegular() {
@@ -120,7 +127,7 @@ func Scan(onProgress func(int, string)) []jsonout.Item {
 		if onProgress != nil {
 			onProgress(visited, target)
 		}
-		if safety.Classify(target, rule.Safety, safety.Opts{}) == "blocked" {
+		if whitelist.Excludes(target) || safety.Classify(target, rule.Safety, safety.Opts{}) == "blocked" {
 			continue
 		}
 		items = append(items, enumerateTopLevel(target, rule)...)

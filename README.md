@@ -31,17 +31,17 @@ It deliberately skips RAM-booster gimmicks. Optimize and Status offer light main
 
 ## Features
 
-The app has five sections:
+The app has five sections plus Settings and a menu-bar HUD:
 
 | Section | Tabs | What it does |
 | --- | --- | --- |
-| **Clean** | Junk · Installers · Purge | App, browser, and developer caches; `.dmg` / `.pkg` / installer archives; project build artifacts (`node_modules`, `DerivedData`, `target`, `Pods`, …) |
-| **Apps** | Caches · Leftovers · Orphans · All | Cache and support files left behind by installed or removed apps |
-| **Analyze** | Overview · Large · Dupes | Disk breakdown, large files (default ≥ 50 MB), duplicate files (size → partial SHA-256 → full SHA-256) |
-| **Optimize** | | Optional maintenance actions with dry-run: flush DNS, rebuild Spotlight index, relaunch Finder, clear Gatekeeper quarantine in Downloads |
-| **Status** | | Disk usage matching macOS Storage (APFS container totals, decimal GB) and system health meters |
+| **Clean** | Junk · Installers · Purge | Caches, logs, Trash (review), installers, project artifacts |
+| **Software** | Caches · Leftovers · Orphans · Uninstall · Updates · Startup | App leftovers, uninstall to Trash, Homebrew/MAS updates, LaunchAgents |
+| **Analyze** | Overview · Map · Large · Dupes | Disk breakdown, folder treemap drill-down, large files, duplicates |
+| **Optimize** | | Maintenance catalog with dry-run and skip reasons (DNS needs admin) |
+| **Status** | | Live meters, top processes (Quit), Keep awake / Clean screen |
 
-The Junk scan covers **caches only**. It does not touch Trash, logs, or archives. Installers and project purge live in their own tabs.
+Settings: Whitelist, Doctor, History. Menu bar shows health score + CPU.
 
 ## Architecture
 
@@ -142,9 +142,10 @@ make package      # → dist/CleanMac-<version>-<arch>.dmg (+ .zip)
 Publish a GitHub release:
 
 ```bash
-gh release create v2.1.2 \
-  dist/CleanMac-2.1.2-arm64.dmg dist/CleanMac-2.1.2-arm64.zip \
-  --title "CleanMac 2.1.2" --notes "Native Go + SwiftUI build."
+gh release create v2.2.0 \
+  dist/CleanMac-2.2.0-arm64.dmg dist/CleanMac-2.2.0-arm64.zip \
+  dist/CleanMac-arm64.dmg dist/CleanMac-arm64.zip \
+  --title "CleanMac 2.2.0" --notes "Mole Mac-app IA parity (CleanMac branding)."
 ```
 
 The app is ad-hoc signed. Developer ID signing and notarization would remove the quarantine workaround above.

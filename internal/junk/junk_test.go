@@ -5,21 +5,23 @@ import (
 	"testing"
 )
 
-func TestRulesAreCacheOnly(t *testing.T) {
-	forbidden := []string{"logs", "trash", "archives", "devicesupport", "pnpm/store"}
+func TestRulesCoverCleanCategories(t *testing.T) {
+	cats := map[string]bool{}
 	for _, r := range Rules() {
-		low := strings.ToLower(r.RelativePath + " " + r.Category)
-		for _, bad := range forbidden {
-			if strings.Contains(low, bad) {
-				t.Fatalf("non-cache rule: %+v", r)
-			}
-		}
-		// Must live under a cache-ish path or DerivedData (rebuildable).
+		cats[r.Category] = true
+		low := strings.ToLower(r.RelativePath)
 		ok := strings.Contains(low, "cache") ||
+			strings.Contains(low, "log") ||
+			strings.Contains(low, "trash") ||
 			strings.Contains(low, "deriveddata") ||
 			strings.Contains(low, "_cacache")
 		if !ok {
-			t.Fatalf("expected cache path: %+v", r)
+			t.Fatalf("unexpected path: %+v", r)
+		}
+	}
+	for _, need := range []string{"userCaches", "browsers", "logs"} {
+		if !cats[need] {
+			t.Fatalf("missing category %s", need)
 		}
 	}
 }

@@ -1,10 +1,8 @@
 # Active Context
 
 - **Stack:** Go CLI + shell + SwiftUI only (Electron removed)
-- Nav: Clean · Apps · Analyze · Optimize · Status
+- Nav: Clean · Software · Analyze · Optimize · Status (+ Settings, Menu Bar)
 - Trash-only deletes in Swift; Go scans only
-- Version **2.1.2**
-- Round brand logo; Apps → Caches segment for safe cache leftovers
-- Disk Status uses APFS **container** totals + **decimal GB** (matches System Settings; was 228 GiB mislabeled)
-- App packaging: ad-hoc codesign + AppIcon.icns; `xattr -cr` clears download quarantine (“damaged”)
-- Junk scan is **cache-only** (no Trash/logs/archives)
+- Version **2.2.0** — Mole Mac-app IA parity (Software hub, Map, Menu Bar, Settings)
+- Disk Status uses APFS **container** totals + **decimal GB**
+- Whitelist + operations log; junk includes caches/logs/Trash(review)

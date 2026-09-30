@@ -39,10 +39,34 @@ func Catalog() []Action {
 			Command: []string{"killall", "Finder"},
 		},
 		{
+			ID: "dock", Title: "Relaunch Dock",
+			Explanation: "Restarts Dock to refresh icons and layout.",
+			NeedsSudo: false, DryRunOK: true,
+			Command: []string{"killall", "Dock"},
+		},
+		{
+			ID: "ql", Title: "Reset Quick Look cache",
+			Explanation: "Clears Quick Look thumbnails (user cache).",
+			NeedsSudo: false, DryRunOK: true,
+			Command: []string{"qlmanage", "-r", "cache"},
+		},
+		{
+			ID: "iconcache", Title: "Refresh icon services",
+			Explanation: "Restarts iconservices agents to clear stale icons.",
+			NeedsSudo: false, DryRunOK: true,
+			Command: []string{"killall", "-KILL", "iconservicesagent"},
+		},
+		{
 			ID: "quarantine", Title: "Clear Gatekeeper quarantine attrs (Downloads)",
 			Explanation: "Removes com.apple.quarantine from files in Downloads. Review first.",
 			NeedsSudo: false, DryRunOK: true,
 			Command: []string{"xattr", "-cr", "$HOME/Downloads"},
+		},
+		{
+			ID: "fontcache", Title: "Clear user font caches",
+			Explanation: "Removes ATS font cache folders under Library/Caches.",
+			NeedsSudo: false, DryRunOK: true,
+			Command: []string{"/bin/rm", "-rf", "$HOME/Library/Caches/com.apple.ATS"},
 		},
 	}
 }
@@ -66,7 +90,7 @@ func Run(ids []string, dryRun bool) Result {
 		a.Status = "pending"
 		if dryRun {
 			a.Status = "ok"
-			a.Detail = "dry-run"
+			a.Detail = "dry-run — would run when confirmed"
 			out = append(out, a)
 			continue
 		}
@@ -83,6 +107,7 @@ func Run(ids []string, dryRun bool) Result {
 			a.Detail = err.Error()
 		} else {
 			a.Status = "ok"
+			a.Detail = "completed"
 		}
 		out = append(out, a)
 	}

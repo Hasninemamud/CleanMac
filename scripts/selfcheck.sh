@@ -13,6 +13,11 @@ go test ./internal/safety/...
 "$BIN" version | grep -q .
 "$BIN" status --json | grep -q '"diskTotal"'
 "$BIN" optimize --dry-run --json | grep -q '"actions"'
+"$BIN" doctor --json | grep -q '"checks"'
+"$BIN" whitelist list --json | grep -q '"paths"'
+"$BIN" analyze treemap --json | grep -q '"children\|"path"'
+"$BIN" software updates --json | grep -q '"items"'
+"$BIN" software startup --json | grep -q '"items"'
 
 # Junk must not contain blocked prefixes
 OUT="$("$BIN" junk --json 2>/dev/null || true)"

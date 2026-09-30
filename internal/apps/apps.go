@@ -11,6 +11,7 @@ import (
 	"github.com/Hasninemamud/CleanMac/internal/fsutil"
 	"github.com/Hasninemamud/CleanMac/internal/jsonout"
 	"github.com/Hasninemamud/CleanMac/internal/safety"
+	"github.com/Hasninemamud/CleanMac/internal/whitelist"
 )
 
 var leftoverRoots = []string{
@@ -189,7 +190,7 @@ func Scan() ScanResult {
 				continue
 			}
 			full := filepath.Join(dir, ent.Name())
-			if safety.IsBlocked(full, safety.Opts{}) || seen[full] || !looksLikeAppData(ent.Name()) {
+			if whitelist.Excludes(full) || safety.IsBlocked(full, safety.Opts{}) || seen[full] || !looksLikeAppData(ent.Name()) {
 				continue
 			}
 			var matches []installedApp
