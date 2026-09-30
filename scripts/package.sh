@@ -25,20 +25,23 @@ rm -f "$DIST/$ZIP_NAME" "$DIST/$DMG_NAME"
 ditto -c -k --keepParent "$STAGE/CleanMac.app" "$DIST/$ZIP_NAME"
 
 ICNS="$APP/Contents/Resources/AppIcon.icns"
-# Window 660×420; background is 1320×840 (@2x). Icons sit on the gold pads.
+# Window 660×400; background 1320×800 (@2x). Icon centers match gen-dmg-background.sh.
 CREATE_DMG_ARGS=(
   --volname "CleanMac"
   --window-pos 200 120
-  --window-size 660 420
+  --window-size 660 400
   --icon-size 128
   --text-size 12
-  --icon "CleanMac.app" 180 185
+  --icon "CleanMac.app" 180 200
   --hide-extension "CleanMac.app"
-  --app-drop-link 480 185
+  --app-drop-link 480 200
   --no-internet-enable
 )
 [[ -f "$BG" ]] && CREATE_DMG_ARGS+=(--background "$BG")
 [[ -f "$ICNS" ]] && CREATE_DMG_ARGS+=(--volicon "$ICNS")
+
+# Always refresh artwork so layout stays in sync with icon coords.
+bash "$ROOT/scripts/gen-dmg-background.sh"
 
 (
   cd "$DIST"

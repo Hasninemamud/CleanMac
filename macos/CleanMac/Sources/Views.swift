@@ -23,7 +23,7 @@ struct CleanView: View {
             Spacer()
         }
         .padding(3)
-        .background(Color.black.opacity(0.22))
+        .background(Theme.surface2)
         .clipShape(Capsule())
         .frame(maxWidth: 360, alignment: .leading)
     }
@@ -63,7 +63,7 @@ struct SoftwareView: View {
                 Spacer()
             }
             .padding(3)
-            .background(Color.black.opacity(0.22))
+            .background(Theme.surface2)
             .clipShape(Capsule())
 
             HStack(spacing: 12) {
@@ -178,7 +178,7 @@ struct AnalyzeView: View {
                 Spacer()
             }
             .padding(3)
-            .background(Color.black.opacity(0.22))
+            .background(Theme.surface2)
             .clipShape(Capsule())
             .frame(maxWidth: 360, alignment: .leading)
 
@@ -449,7 +449,7 @@ struct ItemRow: View {
             if item.isCacheLeftover {
                 Text("CACHE")
                     .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(Theme.bg)
+                    .foregroundColor(Theme.ink)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
                     .background(Theme.accent)

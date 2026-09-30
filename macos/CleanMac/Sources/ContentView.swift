@@ -18,7 +18,7 @@ struct ContentView: View {
         .frame(minWidth: 920, idealWidth: 1020, maxWidth: 1280,
                minHeight: 600, idealHeight: 680, maxHeight: 900)
         .background(Theme.bg)
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(.light)
         .alert("Move to Trash?", isPresented: $state.confirmTrash) {
             Button("Cancel", role: .cancel) {}
             Button("Move to Trash", role: .destructive) {
@@ -45,7 +45,7 @@ struct ContentView: View {
                 .frame(minWidth: 800, minHeight: 600)
         }
         .onAppear {
-            NSApp.appearance = NSAppearance(named: .darkAqua)
+            NSApp.appearance = NSAppearance(named: .aqua)
         }
     }
 
@@ -95,7 +95,7 @@ struct ContentView: View {
                 }
             }
             .padding(3)
-            .background(Color.black.opacity(0.35))
+            .background(Theme.surface2)
             .clipShape(Capsule())
         }
         .frame(height: 50)

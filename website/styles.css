@@ -2,23 +2,23 @@
 
 :root,
 html[data-theme="light"] {
-  --ink: #1a150e;
-  --muted: #6b5e4a;
-  --line: rgba(26, 21, 14, 0.12);
-  --bg: #f3ebe0;
-  --rail: #efe6d4;
-  --surface: rgba(255, 253, 248, 0.82);
-  --surface-solid: #fffdf8;
-  --accent: #d59b3f;
-  --accent-bright: #e0b05a;
-  --accent-soft: rgba(213, 155, 63, 0.16);
-  --ok: #3d7a52;
+  --ink: #2d2926;
+  --muted: #7a7066;
+  --line: rgba(45, 41, 38, 0.12);
+  --bg: #f5f1e8;
+  --rail: #ebe4d4;
+  --surface: rgba(255, 251, 244, 0.88);
+  --surface-solid: #fffbf4;
+  --accent: #d4a373;
+  --accent-bright: #e0b588;
+  --accent-soft: rgba(212, 163, 115, 0.16);
+  --ok: #386641;
   --danger: #b1432f;
-  --btn-ink: #1a150e;
-  --shadow: rgba(26, 21, 14, 0.12);
-  --glow-a: rgba(213, 155, 63, 0.28);
-  --glow-b: rgba(120, 90, 50, 0.12);
-  --chrome: #efe6d4;
+  --btn-ink: #2d2926;
+  --shadow: rgba(45, 41, 38, 0.12);
+  --glow-a: rgba(212, 163, 115, 0.28);
+  --glow-b: rgba(120, 90, 50, 0.10);
+  --chrome: #ebe4d4;
   --dot-r: #ff5f57;
   --dot-y: #febc2e;
   --dot-g: #28c840;
@@ -68,6 +68,7 @@ body {
   pointer-events: none;
   z-index: 0;
   background:
+    radial-gradient(820px 520px at 50% 28%, #faf7f0, transparent 62%),
     radial-gradient(720px 460px at 8% -8%, var(--glow-a), transparent 58%),
     radial-gradient(560px 380px at 92% 8%, var(--glow-b), transparent 52%),
     linear-gradient(180deg, var(--rail) 0%, var(--bg) 42%, var(--rail) 100%);

@@ -187,7 +187,7 @@ struct StatusView: View {
                         .foregroundColor(tab == t ? Theme.ink : Theme.muted)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 7)
-                        .background(tab == t ? Theme.surface2 : Color.clear)
+                        .background(tab == t ? Theme.surface : Color.clear)
                         .clipShape(Capsule())
                     }
                     .buttonStyle(.plain)
@@ -203,7 +203,7 @@ struct StatusView: View {
                 .tint(Theme.accent)
             }
             .padding(3)
-            .background(Color.black.opacity(0.22))
+            .background(Theme.surface2)
             .clipShape(Capsule())
         }
     }

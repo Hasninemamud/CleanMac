@@ -6,3 +6,4 @@
 - Version **2.2.0** — Mole Mac-app IA parity (Software hub, Map, Menu Bar, Settings)
 - Disk Status uses APFS **container** totals + **decimal GB**
 - Whitelist + operations log; junk includes caches/logs/Trash(review)
+- App UI theme: warm cream light (`Theme.swift` + site light CSS tokens) — gold accent, forest green success; forced light appearance

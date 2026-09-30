@@ -2,18 +2,19 @@ import SwiftUI
 import AppKit
 
 enum Theme {
-    static let bg = Color(red: 0.102, green: 0.082, blue: 0.055)
-    static let rail = Color(red: 0.078, green: 0.063, blue: 0.043)
-    static let surface = Color(red: 0.141, green: 0.110, blue: 0.078)
-    static let surface2 = Color(red: 0.18, green: 0.14, blue: 0.10)
-    static let ink = Color(red: 0.953, green: 0.918, blue: 0.847)
-    static let muted = Color(red: 0.72, green: 0.64, blue: 0.52)
-    static let line = Color.white.opacity(0.12)
-    static let accent = Color(red: 0.835, green: 0.608, blue: 0.247)
-    static let accentSoft = Color(red: 0.835, green: 0.608, blue: 0.247).opacity(0.22)
-    static let ok = Color(red: 0.45, green: 0.76, blue: 0.55)
-    static let warn = Color(red: 0.90, green: 0.72, blue: 0.36)
-    static let danger = Color(red: 0.92, green: 0.42, blue: 0.38)
+    // Warm cream light theme (mockup: #F5F1E8 / #2D2926 / #D4A373 / #386641)
+    static let bg = Color(red: 0.961, green: 0.945, blue: 0.910)       // #F5F1E8
+    static let rail = Color(red: 0.922, green: 0.894, blue: 0.831)     // #EBE4D4
+    static let surface = Color(red: 1.0, green: 0.984, blue: 0.957)    // #FFFBF4
+    static let surface2 = Color(red: 0.929, green: 0.902, blue: 0.847) // #EDE6D8
+    static let ink = Color(red: 0.176, green: 0.161, blue: 0.149)      // #2D2926
+    static let muted = Color(red: 0.478, green: 0.439, blue: 0.400)    // #7A7066
+    static let line = Color(red: 0.176, green: 0.161, blue: 0.149).opacity(0.12)
+    static let accent = Color(red: 0.831, green: 0.639, blue: 0.451)   // #D4A373
+    static let accentSoft = Color(red: 0.831, green: 0.639, blue: 0.451).opacity(0.16)
+    static let ok = Color(red: 0.220, green: 0.400, blue: 0.255)       // #386641
+    static let warn = Color(red: 0.78, green: 0.55, blue: 0.22)
+    static let danger = Color(red: 0.69, green: 0.26, blue: 0.18)
 }
 
 struct BrandLogo: View {
@@ -32,7 +33,7 @@ struct BrandLogo: View {
                     .overlay {
                         Text("C")
                             .font(.system(size: size * 0.45, weight: .bold))
-                            .foregroundColor(Theme.bg)
+                            .foregroundColor(Theme.ink)
                     }
             }
         }
@@ -57,10 +58,14 @@ struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12, weight: .bold))
-            .foregroundColor(Theme.bg)
+            .foregroundColor(Theme.ink)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(Theme.accent.opacity(disabled ? 0.4 : (configuration.isPressed ? 0.85 : 1)))
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .stroke(Theme.ink.opacity(0.18), lineWidth: 1)
+            )
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
     }
@@ -73,10 +78,10 @@ struct SoftButtonStyle: ButtonStyle {
             .foregroundColor(Theme.ink)
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .background(Theme.surface2)
+            .background(Theme.surface)
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Theme.line, lineWidth: 1)
+                    .stroke(Theme.ink.opacity(0.22), lineWidth: 1)
             )
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .opacity(configuration.isPressed ? 0.85 : 1)
