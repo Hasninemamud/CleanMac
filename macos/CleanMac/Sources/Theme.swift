@@ -15,6 +15,20 @@ enum Theme {
     static let ok = Color(red: 0.220, green: 0.400, blue: 0.255)       // #386641
     static let warn = Color(red: 0.78, green: 0.55, blue: 0.22)
     static let danger = Color(red: 0.69, green: 0.26, blue: 0.18)
+
+    /// Mole-style dark navy chrome for Clean / Optimize heroes.
+    enum Mole {
+        static let bg = Color(red: 0.110, green: 0.145, blue: 0.231)       // #1C253B
+        static let rail = Color(red: 0.090, green: 0.118, blue: 0.188)     // #171E30
+        static let surface = Color(red: 0.145, green: 0.184, blue: 0.275)  // #252F46
+        static let surface2 = Color(red: 0.180, green: 0.220, blue: 0.320) // #2E3851
+        static let ink = Color.white
+        static let muted = Color.white.opacity(0.55)
+        static let line = Color.white.opacity(0.12)
+        static let link = Color(red: 0.45, green: 0.62, blue: 1.0)
+        static let cta = Color.white
+        static let ctaInk = Color(red: 0.110, green: 0.145, blue: 0.231)
+    }
 }
 
 struct BrandLogo: View {
@@ -105,16 +119,19 @@ struct DangerButtonStyle: ButtonStyle {
 struct SegmentPill: View {
     let title: String
     let selected: Bool
+    var dark = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(selected ? Theme.ink : Theme.muted)
+                .foregroundColor(selected
+                    ? (dark ? Theme.Mole.ctaInk : Theme.ink)
+                    : (dark ? Theme.Mole.muted : Theme.muted))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
-                .background(selected ? Theme.surface : Color.clear)
+                .background(selected ? (dark ? Theme.Mole.cta : Theme.surface) : Color.clear)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)

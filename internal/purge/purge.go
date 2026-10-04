@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Hasninemamud/CleanMac/internal/fsutil"
@@ -53,7 +54,7 @@ func walkForArtifacts(root string, out *[]jsonout.Item, maxDepth, max, depth int
 		if artifactNames[ent.Name()] {
 			mtime := info.ModTime()
 			ageDays := time.Since(mtime).Hours() / 24
-			byteSize := fsutil.DirectorySize(full, 100_000)
+			byteSize := fsutil.DirectorySize(full, 30_000)
 			if byteSize > 0 {
 				intended := "safe"
 				if ageDays < 7 {
@@ -74,16 +75,30 @@ func walkForArtifacts(root string, out *[]jsonout.Item, maxDepth, max, depth int
 
 func Scan(onProgress func(int, string)) []jsonout.Item {
 	home := fsutil.HomeDir()
-	var items []jsonout.Item
-	for _, name := range defaultRoots {
+	type bucket struct{ items []jsonout.Item }
+	buckets := make([]bucket, len(defaultRoots))
+	var wg sync.WaitGroup
+	for i, name := range defaultRoots {
 		root := filepath.Join(home, name)
 		if !fsutil.Exists(root) {
 			continue
 		}
-		if onProgress != nil {
-			onProgress(len(items), root)
-		}
-		walkForArtifacts(root, &items, 5, 400, 0)
+		wg.Add(1)
+		go func(i int, root string) {
+			defer wg.Done()
+			if onProgress != nil {
+				onProgress(i, root)
+			}
+			var local []jsonout.Item
+			// ponytail: shallow project walk (depth 3, 120 hits) — raise if purge misses deep monorepos.
+			walkForArtifacts(root, &local, 3, 120, 0)
+			buckets[i].items = local
+		}(i, root)
+	}
+	wg.Wait()
+	var items []jsonout.Item
+	for _, b := range buckets {
+		items = append(items, b.items...)
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].ByteSize > items[j].ByteSize })
 	return items

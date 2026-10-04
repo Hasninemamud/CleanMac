@@ -11,7 +11,10 @@ let package = Package(
         .executableTarget(
             name: "CleanMac",
             path: "Sources",
-            resources: [.process("Resources")]
+            resources: [.process("Resources")],
+            linkerSettings: [
+                .linkedFramework("SceneKit"),
+            ]
         )
     ]
 )

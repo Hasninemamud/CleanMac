@@ -209,10 +209,11 @@ final class AppState {
         do {
             switch section {
             case .clean:
-                // One Clean scan fills all buckets (Mole-style single review list).
-                junk = try await CLIExecutor.shared.run(["junk", "--json"], as: ItemsResponse.self).items
-                installers = try await CLIExecutor.shared.run(["installer", "--json"], as: ItemsResponse.self).items
-                purgeItems = try await CLIExecutor.shared.run(["purge", "--json"], as: ItemsResponse.self).items
+                // One parallel Clean scan fills all buckets (junk + installers + purge).
+                let r = try await CLIExecutor.shared.run(["clean", "--json"], as: CleanScanResponse.self)
+                junk = r.junk
+                installers = r.installers
+                purgeItems = r.purge
             case .software:
                 switch softwareSegment {
                 case .caches, .leftovers, .orphans, .uninstall:

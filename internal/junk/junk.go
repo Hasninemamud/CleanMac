@@ -4,12 +4,15 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"sync"
 
 	"github.com/Hasninemamud/CleanMac/internal/fsutil"
 	"github.com/Hasninemamud/CleanMac/internal/jsonout"
 	"github.com/Hasninemamud/CleanMac/internal/safety"
 	"github.com/Hasninemamud/CleanMac/internal/whitelist"
 )
+
+const sizeCap = 40_000
 
 type Rule struct {
 	Category     string
@@ -60,7 +63,7 @@ var CategoryLabels = map[string]string{
 func enumerateTopLevel(target string, rule Rule) []jsonout.Item {
 	entries, err := os.ReadDir(target)
 	if err != nil {
-		size := fsutil.DirectorySize(target, 200_000)
+		size := fsutil.DirectorySize(target, sizeCap)
 		if size <= 0 {
 			return nil
 		}
@@ -76,7 +79,15 @@ func enumerateTopLevel(target string, rule Rule) []jsonout.Item {
 			Safety: s, Category: rule.Category, Explanation: rule.Explanation, IsDirectory: true,
 		}}
 	}
-	var results []jsonout.Item
+
+	type candidate struct {
+		full       string
+		name       string
+		isDir      bool
+		size       int64
+		modifiedAt float64
+	}
+	cands := make([]candidate, 0, len(entries))
 	for _, ent := range entries {
 		full := filepath.Join(target, ent.Name())
 		info, err := ent.Info()
@@ -86,26 +97,45 @@ func enumerateTopLevel(target string, rule Rule) []jsonout.Item {
 		if whitelist.Excludes(full) || safety.IsBlocked(full, safety.Opts{}) || info.Mode()&os.ModeSymlink != 0 {
 			continue
 		}
-		var size int64
-		modifiedAt := float64(info.ModTime().UnixMilli())
-		if ent.IsDir() {
-			size = fsutil.DirectorySize(full, 200_000)
-		} else if info.Mode().IsRegular() {
-			size = info.Size()
-		} else {
+		if !ent.IsDir() && !info.Mode().IsRegular() {
 			continue
 		}
-		if size <= 0 {
+		cands = append(cands, candidate{
+			full: full, name: ent.Name(), isDir: ent.IsDir(),
+			size: info.Size(), modifiedAt: float64(info.ModTime().UnixMilli()),
+		})
+	}
+
+	// ponytail: parallel size walk; ceiling ~8 workers — bump if Clean still feels slow on huge caches.
+	sem := make(chan struct{}, 8)
+	var wg sync.WaitGroup
+	for i := range cands {
+		if !cands[i].isDir {
 			continue
 		}
-		s := safety.Classify(full, rule.Safety, safety.Opts{})
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			sem <- struct{}{}
+			cands[i].size = fsutil.DirectorySize(cands[i].full, sizeCap)
+			<-sem
+		}(i)
+	}
+	wg.Wait()
+
+	var results []jsonout.Item
+	for _, c := range cands {
+		if c.size <= 0 {
+			continue
+		}
+		s := safety.Classify(c.full, rule.Safety, safety.Opts{})
 		if s == "blocked" {
 			continue
 		}
 		results = append(results, jsonout.Item{
-			Path: full, Name: ent.Name(), ByteSize: size, Safety: s,
+			Path: c.full, Name: c.name, ByteSize: c.size, Safety: s,
 			Category: rule.Category, Explanation: rule.Explanation,
-			ModifiedAt: modifiedAt, IsDirectory: ent.IsDir(),
+			ModifiedAt: c.modifiedAt, IsDirectory: c.isDir,
 		})
 	}
 	return results
@@ -113,24 +143,45 @@ func enumerateTopLevel(target string, rule Rule) []jsonout.Item {
 
 func Scan(onProgress func(int, string)) []jsonout.Item {
 	home := fsutil.HomeDir()
-	var items []jsonout.Item
+	rules := Rules()
+	buckets := make([][]jsonout.Item, len(rules))
+	var wg sync.WaitGroup
+	var progMu sync.Mutex
 	visited := 0
-	for _, rule := range Rules() {
-		target := rule.RelativePath
-		if !filepath.IsAbs(target) {
-			target = filepath.Join(home, rule.RelativePath)
-		}
-		if !fsutil.Exists(target) {
-			continue
-		}
-		visited++
-		if onProgress != nil {
-			onProgress(visited, target)
-		}
-		if whitelist.Excludes(target) || safety.Classify(target, rule.Safety, safety.Opts{}) == "blocked" {
-			continue
-		}
-		items = append(items, enumerateTopLevel(target, rule)...)
+	sem := make(chan struct{}, 6)
+
+	for i, rule := range rules {
+		wg.Add(1)
+		go func(i int, rule Rule) {
+			defer wg.Done()
+			target := rule.RelativePath
+			if !filepath.IsAbs(target) {
+				target = filepath.Join(home, rule.RelativePath)
+			}
+			if !fsutil.Exists(target) {
+				return
+			}
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			progMu.Lock()
+			visited++
+			n := visited
+			progMu.Unlock()
+			if onProgress != nil {
+				onProgress(n, target)
+			}
+			if whitelist.Excludes(target) || safety.Classify(target, rule.Safety, safety.Opts{}) == "blocked" {
+				return
+			}
+			buckets[i] = enumerateTopLevel(target, rule)
+		}(i, rule)
+	}
+	wg.Wait()
+
+	var items []jsonout.Item
+	for _, b := range buckets {
+		items = append(items, b...)
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].ByteSize > items[j].ByteSize })
 	return items

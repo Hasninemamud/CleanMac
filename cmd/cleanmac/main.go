@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 
 	"github.com/Hasninemamud/CleanMac/internal/apps"
 	"github.com/Hasninemamud/CleanMac/internal/disk"
@@ -35,6 +36,8 @@ func main() {
 	switch cmd {
 	case "version", "--version", "-v":
 		fmt.Println(version)
+	case "clean":
+		runClean(args)
 	case "junk":
 		runJunk(args)
 	case "installer", "installers":
@@ -70,6 +73,7 @@ func usage() {
 	fmt.Fprintf(os.Stderr, `cleanmac %s — Mac space cleaner kernel
 
 Usage:
+  cleanmac clean --json
   cleanmac junk --json
   cleanmac installer --json
   cleanmac purge --json
@@ -97,6 +101,40 @@ func wantJSON(args []string) bool {
 
 func progress() func(int, string) {
 	return func(n int, p string) { jsonout.ProgressStderr(n, p) }
+}
+
+func runClean(args []string) {
+	_ = args
+	var junkItems, installerItems, purgeItems []jsonout.Item
+	var wg sync.WaitGroup
+	wg.Add(3)
+	go func() {
+		defer wg.Done()
+		junkItems = junk.Scan(nil)
+		if junkItems == nil {
+			junkItems = []jsonout.Item{}
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		installerItems = installers.Scan()
+		if installerItems == nil {
+			installerItems = []jsonout.Item{}
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		purgeItems = purge.Scan(nil)
+		if purgeItems == nil {
+			purgeItems = []jsonout.Item{}
+		}
+	}()
+	wg.Wait()
+	outJSON(map[string]any{
+		"junk":       junkItems,
+		"installers": installerItems,
+		"purge":      purgeItems,
+	})
 }
 
 func runJunk(args []string) {

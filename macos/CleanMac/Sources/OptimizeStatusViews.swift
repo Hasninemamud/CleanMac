@@ -27,8 +27,8 @@ struct OptimizeView: View {
                     .fill(
                         RadialGradient(
                             colors: [
-                                (complete ? Theme.ok : Theme.ink).opacity(pulse ? 0.18 : 0.10),
-                                Theme.bg.opacity(0),
+                                Color.white.opacity(pulse ? 0.12 : 0.06),
+                                Theme.Mole.bg.opacity(0),
                             ],
                             center: .center,
                             startRadius: 30,
@@ -43,15 +43,15 @@ struct OptimizeView: View {
                     .foregroundStyle(
                         LinearGradient(
                             colors: [
-                                Theme.ink.opacity(complete ? 0.9 : 0.75),
-                                Theme.muted.opacity(0.55),
+                                Theme.Mole.ink.opacity(complete ? 0.95 : 0.8),
+                                Theme.Mole.muted.opacity(0.55),
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
                     .symbolRenderingMode(.hierarchical)
-                    .shadow(color: Theme.ink.opacity(0.12), radius: 24, y: 10)
+                    .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
                     .offset(y: floatUp ? -8 : 6)
                     .rotationEffect(.degrees(state.busy ? 8 : 0))
                     .scaleEffect(appeared ? 1 : 0.88)
@@ -60,7 +60,7 @@ struct OptimizeView: View {
                 if showCheck {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 36, weight: .semibold))
-                        .foregroundColor(Theme.ok)
+                        .foregroundColor(Theme.Mole.link)
                         .offset(x: 70, y: 70)
                         .transition(.scale.combined(with: .opacity))
                 }
@@ -76,7 +76,7 @@ struct OptimizeView: View {
 
             Text(headline)
                 .font(.system(size: 32, weight: .bold))
-                .foregroundColor(Theme.ink)
+                .foregroundColor(Theme.Mole.ink)
                 .multilineTextAlignment(.center)
                 .contentTransition(.opacity)
                 .animation(.spring(response: 0.4, dampingFraction: 0.85), value: headline)
@@ -85,7 +85,7 @@ struct OptimizeView: View {
 
             Text(state.busy ? "Working…" : subtitle)
                 .font(.system(size: 13, weight: .medium))
-                .foregroundColor(Theme.muted)
+                .foregroundColor(Theme.Mole.muted)
                 .multilineTextAlignment(.center)
                 .padding(.top, 10)
                 .padding(.horizontal, 40)
@@ -99,13 +99,13 @@ struct OptimizeView: View {
             } label: {
                 Text(buttonTitle)
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(Theme.ink.opacity(state.busy ? 0.4 : 0.85))
+                    .foregroundColor(Theme.Mole.ctaInk.opacity(state.busy ? 0.4 : 0.9))
                     .frame(minWidth: 220)
                     .padding(.horizontal, 36)
                     .padding(.vertical, 14)
-                    .background(complete ? Theme.ok.opacity(0.15) : Theme.surface2)
+                    .background(complete ? Theme.Mole.link.opacity(0.25) : Theme.Mole.cta)
                     .overlay(
-                        Capsule().stroke(complete ? Theme.ok.opacity(0.35) : Theme.line, lineWidth: 1)
+                        Capsule().stroke(complete ? Theme.Mole.link.opacity(0.5) : Theme.Mole.line, lineWidth: 1)
                     )
                     .clipShape(Capsule())
                     .animation(.easeOut(duration: 0.25), value: complete)
@@ -186,14 +186,13 @@ struct StatusView: View {
     @State private var live = true
 
     private let cols = Array(repeating: GridItem(.flexible(), spacing: 12), count: 4)
+    /// Fixed trailing widths so header + rows share one grid.
     private enum ProcCol {
-        static let mem: CGFloat = 72
-        static let cpu: CGFloat = 96
-        static let pwr: CGFloat = 44
-        static let pid: CGFloat = 52
-        static let action: CGFloat = 28
-        static let mark: CGFloat = 3
-        static let icon: CGFloat = 18
+        static let mem: CGFloat = 70
+        static let cpu: CGFloat = 88
+        static let pwr: CGFloat = 40
+        static let pid: CGFloat = 56
+        static let action: CGFloat = 24
     }
 
     var body: some View {
@@ -272,7 +271,7 @@ struct StatusView: View {
         let score = m.healthScore ?? 100
         let label = m.healthLabel ?? "Excellent"
         let tint = score >= 80 ? Dash.green : Dash.amber
-        return VStack(alignment: .leading, spacing: 0) {
+        return VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Image(systemName: "heart.fill")
                     .font(.system(size: 10, weight: .bold))
@@ -280,8 +279,6 @@ struct StatusView: View {
                     .font(.system(size: 11, weight: .bold))
             }
             .foregroundColor(tint)
-
-            Spacer(minLength: 8)
 
             HStack(alignment: .center, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -308,14 +305,13 @@ struct StatusView: View {
                                 center: .center, startRadius: 2, endRadius: 36
                             )
                         )
-                        .frame(width: 64, height: 64)
+                        .frame(width: 56, height: 56)
                     Image(systemName: score >= 80 ? "checkmark.seal.fill" : "sun.max.fill")
-                        .font(.system(size: 28, weight: .medium))
+                        .font(.system(size: 24, weight: .medium))
                         .foregroundStyle(tint)
                 }
             }
-
-            Spacer(minLength: 8)
+            .frame(maxHeight: .infinity, alignment: .center)
 
             Text(healthMeta(m))
                 .font(.system(size: 10, weight: .medium))
@@ -325,6 +321,7 @@ struct StatusView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 158, maxHeight: 158, alignment: .topLeading)
+        .clipped()
         .background(cardBG)
     }
 
@@ -333,7 +330,7 @@ struct StatusView: View {
         let desktop = m.batteryState == "Desktop"
             || ((m.batteryPct ?? 0) == 0 && (m.batteryState == "Unknown" || m.batteryState == nil))
         let ring = desktop ? 1.0 : pctVal
-        return VStack(alignment: .leading, spacing: 0) {
+        return VStack(alignment: .leading, spacing: 8) {
             HStack {
                 HStack(spacing: 6) {
                     Image(systemName: "battery.100.bolt")
@@ -348,8 +345,6 @@ struct StatusView: View {
                     .foregroundColor(Theme.muted)
                     .lineLimit(1)
             }
-
-            Spacer(minLength: 8)
 
             HStack(alignment: .center, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
@@ -376,19 +371,18 @@ struct StatusView: View {
                 }
                 Spacer(minLength: 4)
                 ZStack {
-                    Circle().stroke(Theme.surface2, lineWidth: 6).frame(width: 56, height: 56)
+                    Circle().stroke(Theme.surface2, lineWidth: 6).frame(width: 52, height: 52)
                     Circle()
                         .trim(from: 0, to: ring)
                         .stroke(Dash.green, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                         .rotationEffect(.degrees(-90))
-                        .frame(width: 56, height: 56)
+                        .frame(width: 52, height: 52)
                     Image(systemName: "laptopcomputer")
-                        .font(.system(size: 16, weight: .medium))
+                        .font(.system(size: 15, weight: .medium))
                         .foregroundColor(Theme.ink)
                 }
             }
-
-            Spacer(minLength: 8)
+            .frame(maxHeight: .infinity, alignment: .center)
 
             Text(topDrainLine(m))
                 .font(.system(size: 10, weight: .medium))
@@ -398,6 +392,7 @@ struct StatusView: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 158, maxHeight: 158, alignment: .topLeading)
+        .clipped()
         .background(cardBG)
     }
 
@@ -413,19 +408,17 @@ struct StatusView: View {
         history: [Double],
         chart: MiniChart
     ) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 Text(title)
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(tint)
-                Spacer()
+                Spacer(minLength: 4)
                 Text(badge)
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(Theme.muted)
                     .lineLimit(1)
             }
-
-            Spacer(minLength: 6)
 
             if let secondary {
                 VStack(alignment: .leading, spacing: 2) {
@@ -439,15 +432,15 @@ struct StatusView: View {
                         .foregroundColor(tint)
                         .lineLimit(1)
                 }
+                .frame(minHeight: 44, alignment: .topLeading)
             } else {
                 Text(primary)
                     .font(.system(size: 26, weight: .bold, design: .rounded))
                     .foregroundColor(Theme.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+                    .frame(minHeight: 44, alignment: .topLeading)
             }
-
-            Spacer(minLength: 8)
 
             Group {
                 switch chart {
@@ -455,6 +448,7 @@ struct StatusView: View {
                     BarChart(values: history.isEmpty ? [0.1, 0.2, 0.15, 0.3] : history, color: tint)
                 case .line:
                     Sparkline(values: history.isEmpty ? [0.2, 0.25, 0.22, 0.3, 0.28] : history, color: tint)
+                        .padding(.vertical, 4)
                 case .bar:
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
@@ -466,18 +460,19 @@ struct StatusView: View {
                     }
                 }
             }
-            .frame(height: chart == .bar ? 8 : 32)
-
-            Spacer(minLength: 8)
+            .frame(height: chart == .bar ? 8 : 28)
+            .frame(maxHeight: .infinity, alignment: .center)
 
             Text(footer)
                 .font(.system(size: 10, weight: .medium))
                 .foregroundColor(Theme.muted)
                 .lineLimit(1)
-                .truncationMode(.tail)
+                .minimumScaleFactor(0.8)
+                .truncationMode(.middle)
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 158, maxHeight: 158, alignment: .topLeading)
+        .clipped()
         .background(cardBG)
     }
 
@@ -485,22 +480,27 @@ struct StatusView: View {
         let procs = Array((m.processes ?? []).prefix(10))
         let maxCPU = max(procs.map(\.cpu).max() ?? 1, 1)
         return VStack(alignment: .leading, spacing: 0) {
-            processColumns(header: true, name: "NAME (\(procs.count))", mem: "MEM", cpu: "% CPU", pwr: "PWR", pid: "PID")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(Theme.muted)
-                .padding(.vertical, 10)
-                .overlay(alignment: .bottom) {
-                    Rectangle().fill(Theme.line).frame(height: 1)
-                }
+            processRow(
+                name: "NAME (\(procs.count))",
+                mem: "MEM",
+                cpu: "% CPU",
+                pwr: "PWR",
+                pid: "PID",
+                isHeader: true
+            )
+            .padding(.vertical, 10)
+            .overlay(alignment: .bottom) {
+                Rectangle().fill(Theme.line).frame(height: 1)
+            }
 
             ForEach(Array(procs.enumerated()), id: \.element.id) { idx, p in
-                processColumns(
-                    header: false,
+                processRow(
                     name: p.name,
                     mem: String(format: "%.0f MB", p.memMB),
                     cpu: String(format: "%.0f", p.cpu),
                     pwr: String(format: "%.0f", min(p.cpu * 0.8, 99)),
                     pid: "\(p.pid)",
+                    isHeader: false,
                     cpuBar: min(p.cpu / maxCPU, 1),
                     hot: p.cpu > 40,
                     selected: selectedPID == p.pid,
@@ -510,56 +510,61 @@ struct StatusView: View {
                 .background(selectedPID == p.pid ? Theme.accentSoft : (idx % 2 == 0 ? Color.clear : Theme.surface2.opacity(0.35)))
                 .contentShape(Rectangle())
                 .onTapGesture { selectedPID = p.pid }
+                .contextMenu {
+                    Button("Quit", role: .destructive) { state.quitProcess(pid: p.pid) }
+                }
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 14)
         .padding(.vertical, 4)
         .background(cardBG)
     }
 
-    @ViewBuilder
-    private func processColumns(
-        header: Bool,
+    private func processRow(
         name: String,
         mem: String,
         cpu: String,
         pwr: String,
         pid: String,
+        isHeader: Bool,
         cpuBar: Double = 0,
         hot: Bool = false,
         selected: Bool = false,
         onQuit: (() -> Void)? = nil
     ) -> some View {
-        HStack(spacing: 8) {
-            RoundedRectangle(cornerRadius: 1)
-                .fill(selected ? Dash.amber : Color.clear)
-                .frame(width: ProcCol.mark, height: 18)
-
-            if header {
-                Color.clear.frame(width: ProcCol.icon, height: ProcCol.icon)
-            } else {
-                Image(systemName: "app.fill")
-                    .font(.system(size: 11))
-                    .foregroundColor(Theme.muted)
-                    .frame(width: ProcCol.icon, height: ProcCol.icon)
+        HStack(spacing: 0) {
+            HStack(spacing: 8) {
+                RoundedRectangle(cornerRadius: 1)
+                    .fill(selected ? Dash.amber : Color.clear)
+                    .frame(width: 3, height: 16)
+                if isHeader {
+                    Color.clear.frame(width: 14, height: 14)
+                } else {
+                    Image(systemName: "app.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(Theme.muted)
+                        .frame(width: 14, height: 14)
+                }
+                Text(name)
+                    .font(isHeader ? .system(size: 10, weight: .bold) : .system(size: 12, weight: .semibold))
+                    .foregroundColor(isHeader ? Theme.muted : Theme.ink)
+                    .lineLimit(1)
             }
-
-            Text(name)
-                .font(header ? .system(size: 10, weight: .bold) : .system(size: 12, weight: .semibold))
-                .foregroundColor(header ? Theme.muted : Theme.ink)
-                .lineLimit(1)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             Text(mem)
-                .font(.system(size: header ? 10 : 11, weight: header ? .bold : .medium, design: .rounded))
+                .font(.system(size: isHeader ? 10 : 11, weight: isHeader ? .bold : .medium, design: .rounded))
                 .foregroundColor(Theme.muted)
                 .monospacedDigit()
+                .lineLimit(1)
                 .frame(width: ProcCol.mem, alignment: .trailing)
 
             Group {
-                if header {
+                if isHeader {
                     Text(cpu)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(Theme.muted)
+                        .frame(maxWidth: .infinity, alignment: .trailing)
                 } else {
                     HStack(spacing: 6) {
                         Text(cpu)
@@ -567,46 +572,57 @@ struct StatusView: View {
                             .foregroundColor(Theme.muted)
                             .monospacedDigit()
                             .frame(width: 28, alignment: .trailing)
-                        GeometryReader { geo in
-                            ZStack(alignment: .leading) {
-                                Capsule().fill(Theme.surface2)
+                        Capsule()
+                            .fill(Theme.surface2)
+                            .frame(width: 44, height: 5)
+                            .overlay(alignment: .leading) {
                                 Capsule()
                                     .fill(hot ? Dash.amber : Theme.muted.opacity(0.45))
-                                    .frame(width: max(2, geo.size.width * CGFloat(cpuBar)))
+                                    .frame(width: max(2, 44 * cpuBar), height: 5)
                             }
-                        }
-                        .frame(height: 5)
                     }
+                    .frame(maxWidth: .infinity, alignment: .trailing)
                 }
             }
-            .frame(width: ProcCol.cpu, alignment: .leading)
+            .frame(width: ProcCol.cpu, alignment: .trailing)
 
             Text(pwr)
-                .font(.system(size: header ? 10 : 11, weight: header ? .bold : .medium, design: .rounded))
+                .font(.system(size: isHeader ? 10 : 11, weight: isHeader ? .bold : .medium, design: .rounded))
                 .foregroundColor(hot ? Dash.amber : Theme.muted)
                 .monospacedDigit()
+                .lineLimit(1)
                 .frame(width: ProcCol.pwr, alignment: .trailing)
 
             Text(pid)
-                .font(.system(size: header ? 10 : 11, weight: header ? .bold : .medium, design: .rounded))
+                .font(.system(size: isHeader ? 10 : 11, weight: isHeader ? .bold : .medium, design: .rounded))
                 .foregroundColor(Theme.muted)
                 .monospacedDigit()
+                .lineLimit(1)
                 .frame(width: ProcCol.pid, alignment: .trailing)
 
-            if header {
-                Color.clear.frame(width: ProcCol.action, height: 22)
-            } else {
-                Menu {
-                    Button("Quit") { onQuit?() }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(Theme.muted)
-                        .frame(width: ProcCol.action, height: 22)
+            Group {
+                if isHeader {
+                    Color.clear.frame(width: ProcCol.action, height: 18)
+                } else {
+                    Menu {
+                        Button("Quit", role: .destructive) { onQuit?() }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(Theme.muted)
+                            .frame(width: ProcCol.action, height: 18)
+                            .contentShape(Rectangle())
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                    .frame(width: ProcCol.action, height: 18)
+                    .clipped()
                 }
-                .menuStyle(.borderlessButton)
             }
+            .frame(width: ProcCol.action, alignment: .center)
+            .padding(.leading, 6)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var cardBG: some View {

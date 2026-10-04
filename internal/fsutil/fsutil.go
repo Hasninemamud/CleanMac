@@ -21,9 +21,10 @@ func Exists(p string) bool {
 }
 
 // DirectorySize walks files under dir. Skips blocked paths and symlink dirs.
+// maxEntries caps work so Clean scans stay responsive on huge cache trees.
 func DirectorySize(dir string, maxEntries int) int64 {
 	if maxEntries <= 0 {
-		maxEntries = 200_000
+		maxEntries = 50_000
 	}
 	if safety.IsBlocked(dir, safety.Opts{}) {
 		return 0

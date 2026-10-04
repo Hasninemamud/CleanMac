@@ -43,39 +43,24 @@ struct CleanView: View {
                     .fill(
                         RadialGradient(
                             colors: [
-                                Theme.accent.opacity(state.busy ? 0.34 : 0.22),
-                                Theme.bg.opacity(0),
+                                Color.white.opacity(state.busy ? 0.10 : 0.06),
+                                Theme.Mole.bg.opacity(0),
                             ],
                             center: .center,
                             startRadius: 20,
-                            endRadius: 140
+                            endRadius: 150
                         )
                     )
-                    .frame(width: 280, height: 280)
-                    .scaleEffect(state.busy ? 1.06 : 1)
+                    .frame(width: 300, height: 300)
+                    .scaleEffect(state.busy ? 1.05 : 1)
                     .animation(
                         state.busy
                             ? .easeInOut(duration: 1.1).repeatForever(autoreverses: true)
                             : .spring(response: 0.4, dampingFraction: 0.85),
                         value: state.busy
                     )
-                Image(systemName: "globe.americas.fill")
-                    .font(.system(size: 120, weight: .ultraLight))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: [Theme.ink.opacity(0.85), Theme.muted],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .symbolRenderingMode(.hierarchical)
-                    .rotationEffect(.degrees(state.busy ? 360 : 0))
-                    .animation(
-                        state.busy
-                            ? .linear(duration: 10).repeatForever(autoreverses: false)
-                            : .easeOut(duration: 0.5),
-                        value: state.busy
-                    )
+                EarthGlobeView(spinningFast: state.busy)
+                    .frame(width: 220, height: 220)
                     .offset(y: heroReady ? 0 : 18)
                     .opacity(heroReady ? 1 : 0)
             }
@@ -83,7 +68,7 @@ struct CleanView: View {
 
             Text(state.cleanItems.isEmpty ? "Ready to scan" : "\(ByteFormat.disk(state.cleanTotalBytes)) found")
                 .font(.system(size: 34, weight: .bold, design: .rounded))
-                .foregroundColor(Theme.ink)
+                .foregroundColor(Theme.Mole.ink)
                 .contentTransition(.numericText())
                 .animation(.spring(response: 0.4, dampingFraction: 0.85), value: state.cleanTotalBytes)
                 .opacity(heroReady ? 1 : 0)
@@ -91,23 +76,23 @@ struct CleanView: View {
 
             HStack(spacing: 6) {
                 if state.busy {
-                    ProgressView().controlSize(.mini).tint(Theme.accent)
+                    ProgressView().controlSize(.mini).tint(.white)
                     Text("Scanning…")
-                        .foregroundColor(Theme.muted)
+                        .foregroundColor(Theme.Mole.muted)
                 } else if state.cleanItems.isEmpty {
                     Text("Caches, installers, and leftovers")
-                        .foregroundColor(Theme.muted)
-                    Text("·").foregroundColor(Theme.muted.opacity(0.5))
+                        .foregroundColor(Theme.Mole.muted)
+                    Text("·").foregroundColor(Theme.Mole.muted.opacity(0.5))
                     Button("Scan now") { Task { await state.scan() } }
                         .buttonStyle(.plain)
-                        .foregroundColor(Theme.ok)
+                        .foregroundColor(Theme.Mole.link)
                 } else {
                     Text("\(state.cleanItems.count) items in \(state.cleanCategories.count) categories")
-                        .foregroundColor(Theme.muted)
-                    Text("·").foregroundColor(Theme.muted.opacity(0.5))
+                        .foregroundColor(Theme.Mole.muted)
+                    Text("·").foregroundColor(Theme.Mole.muted.opacity(0.5))
                     Button("Scan again") { Task { await state.scan() } }
                         .buttonStyle(.plain)
-                        .foregroundColor(Theme.ok)
+                        .foregroundColor(Theme.Mole.link)
                         .disabled(state.busy)
                 }
             }
@@ -130,12 +115,12 @@ struct CleanView: View {
             } label: {
                 Text(state.cleanItems.isEmpty ? "Scan Mac" : "Review results")
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(Theme.bg)
+                    .foregroundColor(Theme.Mole.ctaInk)
                     .padding(.horizontal, 36)
                     .padding(.vertical, 14)
-                    .background(Theme.ink)
+                    .background(Theme.Mole.cta)
                     .clipShape(Capsule())
-                    .shadow(color: Theme.ink.opacity(0.18), radius: 16, y: 6)
+                    .shadow(color: .black.opacity(0.25), radius: 16, y: 6)
             }
             .buttonStyle(PressableCapsuleStyle())
             .disabled(state.busy)
@@ -154,10 +139,10 @@ struct CleanView: View {
                 VStack(alignment: .leading, spacing: 6) {
                     Text("Ready to clean")
                         .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(Theme.ink)
+                        .foregroundColor(Theme.Mole.ink)
                     Text(reviewSubtitle)
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(Theme.muted)
+                        .foregroundColor(Theme.Mole.muted)
                         .lineLimit(2)
                         .contentTransition(.opacity)
                         .animation(.easeOut(duration: 0.2), value: state.selected.count)
@@ -169,11 +154,11 @@ struct CleanView: View {
                     } label: {
                         Image(systemName: "arrow.clockwise")
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(Theme.muted)
+                            .foregroundColor(Theme.Mole.muted)
                             .frame(width: 34, height: 34)
-                            .background(Theme.surface)
+                            .background(Theme.Mole.surface)
                             .clipShape(Circle())
-                            .overlay(Circle().stroke(Theme.line, lineWidth: 1))
+                            .overlay(Circle().stroke(Theme.Mole.line, lineWidth: 1))
                             .rotationEffect(.degrees(state.busy ? 360 : 0))
                             .animation(
                                 state.busy
@@ -193,11 +178,11 @@ struct CleanView: View {
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(Theme.muted)
+                            .foregroundColor(Theme.Mole.muted)
                             .frame(width: 34, height: 34)
-                            .background(Theme.surface)
+                            .background(Theme.Mole.surface)
                             .clipShape(Circle())
-                            .overlay(Circle().stroke(Theme.line, lineWidth: 1))
+                            .overlay(Circle().stroke(Theme.Mole.line, lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                     .help("Back")
@@ -211,6 +196,7 @@ struct CleanView: View {
                         CleanCategoryRow(
                             category: cat,
                             selected: selected,
+                            dark: true,
                             expanded: Binding(
                                 get: { expanded.contains(cat.name) },
                                 set: { on in
@@ -275,19 +261,19 @@ struct CleanView: View {
             HStack(spacing: 8) {
                 Text("\(state.selected.count) selected")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(Theme.ink)
-                Text("·").foregroundColor(Theme.muted.opacity(0.5))
+                    .foregroundColor(Theme.Mole.ink)
+                Text("·").foregroundColor(Theme.Mole.muted.opacity(0.5))
                 Button("All") { state.selectAllClean() }
                     .buttonStyle(.plain)
-                Text("·").foregroundColor(Theme.muted.opacity(0.5))
+                Text("·").foregroundColor(Theme.Mole.muted.opacity(0.5))
                 Button("None") { state.selected.removeAll() }
                     .buttonStyle(.plain)
-                Text("·").foregroundColor(Theme.muted.opacity(0.5))
+                Text("·").foregroundColor(Theme.Mole.muted.opacity(0.5))
                 Button("Recommended") { state.selectRecommendedClean() }
                     .buttonStyle(.plain)
             }
             .font(.system(size: 12, weight: .semibold))
-            .foregroundColor(Theme.ok)
+            .foregroundColor(Theme.Mole.link)
 
             Spacer()
 
@@ -296,10 +282,10 @@ struct CleanView: View {
             } label: {
                 Text("Permanently clean · \(ByteFormat.disk(state.selectedBytes))")
                     .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(Theme.bg)
+                    .foregroundColor(Theme.Mole.ctaInk)
                     .padding(.horizontal, 20)
                     .padding(.vertical, 12)
-                    .background(state.selected.isEmpty ? Theme.muted : Theme.ink)
+                    .background(state.selected.isEmpty ? Theme.Mole.surface2 : Theme.Mole.cta)
                     .clipShape(Capsule())
                     .animation(.easeOut(duration: 0.2), value: state.selectedBytes)
             }
@@ -323,7 +309,14 @@ struct PressableCapsuleStyle: ButtonStyle {
 struct CleanCategoryRow: View {
     let category: CleanCategory
     @Binding var selected: Set<String>
+    var dark = false
     @Binding var expanded: Bool
+
+    private var ink: Color { dark ? Theme.Mole.ink : Theme.ink }
+    private var muted: Color { dark ? Theme.Mole.muted : Theme.muted }
+    private var surface: Color { dark ? Theme.Mole.surface : Theme.surface }
+    private var line: Color { dark ? Theme.Mole.line : Theme.line }
+    private var check: Color { dark ? Theme.Mole.link : Theme.ok }
 
     private var selectablePaths: [String] { category.selectable.map(\.path) }
     private var selectedCount: Int { selectablePaths.filter { selected.contains($0) }.count }
@@ -345,7 +338,7 @@ struct CleanCategoryRow: View {
                 } label: {
                     Image(systemName: checkboxSymbol)
                         .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(triState == false ? Theme.muted : Theme.ok)
+                        .foregroundColor(triState == false ? muted : check)
                 }
                 .buttonStyle(.plain)
                 .disabled(selectablePaths.isEmpty)
@@ -354,14 +347,14 @@ struct CleanCategoryRow: View {
                     HStack(spacing: 8) {
                         Text(category.name)
                             .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(Theme.ink)
+                            .foregroundColor(ink)
                         Text("\(selectedCount)/\(category.items.count) selected")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(Theme.muted)
+                            .foregroundColor(muted)
                     }
                     Text(category.blurb)
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(Theme.muted)
+                        .foregroundColor(muted)
                         .lineLimit(1)
                 }
 
@@ -370,11 +363,11 @@ struct CleanCategoryRow: View {
                 HStack(alignment: .firstTextBaseline, spacing: 4) {
                     Text(ByteFormat.string(selectedBytes))
                         .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundColor(Theme.ink)
+                        .foregroundColor(ink)
                         .monospacedDigit()
                     Text("/ \(ByteFormat.string(category.byteSize))")
                         .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(Theme.muted)
+                        .foregroundColor(muted)
                         .monospacedDigit()
                 }
 
@@ -383,7 +376,7 @@ struct CleanCategoryRow: View {
                 } label: {
                     Image(systemName: "chevron.down")
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(Theme.muted)
+                        .foregroundColor(muted)
                         .rotationEffect(.degrees(expanded ? 180 : 0))
                 }
                 .buttonStyle(.plain)
@@ -396,19 +389,19 @@ struct CleanCategoryRow: View {
             }
 
             if expanded {
-                Divider().background(Theme.line)
+                Divider().background(line)
                 ForEach(category.items) { item in
-                    ItemRow(item: item, selected: $selected)
-                    Divider().background(Theme.line)
+                    ItemRow(item: item, selected: $selected, dark: dark)
+                    Divider().background(line)
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .background(Theme.surface)
+        .background(surface)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Theme.line, lineWidth: 1)
+                .stroke(line, lineWidth: 1)
         )
         .animation(.spring(response: 0.35, dampingFraction: 0.88), value: expanded)
         .animation(.easeOut(duration: 0.2), value: selectedCount)
@@ -1472,7 +1465,11 @@ struct ItemTable: View {
 struct ItemRow: View {
     let item: ScanItem
     @Binding var selected: Set<String>
+    var dark = false
     @Environment(AppState.self) private var state
+
+    private var ink: Color { dark ? Theme.Mole.ink : Theme.ink }
+    private var muted: Color { dark ? Theme.Mole.muted : Theme.muted }
 
     private var isOn: Binding<Bool> {
         Binding(
@@ -1494,11 +1491,11 @@ struct ItemRow: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(Theme.ink)
+                    .foregroundColor(ink)
                     .lineLimit(1)
                 Text(item.explanation ?? item.path)
                     .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(Theme.muted)
+                    .foregroundColor(muted)
                     .lineLimit(1)
                     .truncationMode(.middle)
             }
@@ -1509,16 +1506,16 @@ struct ItemRow: View {
             if item.isCacheLeftover {
                 Text("CACHE")
                     .font(.system(size: 9, weight: .bold))
-                    .foregroundColor(Theme.ink)
+                    .foregroundColor(dark ? Theme.Mole.ctaInk : Theme.ink)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
-                    .background(Theme.accent)
+                    .background(dark ? Theme.Mole.link : Theme.accent)
                     .clipShape(Capsule())
             }
 
             Text(ByteFormat.string(item.byteSize))
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundColor(Theme.ink)
+                .foregroundColor(ink)
                 .monospacedDigit()
                 .frame(width: 68, alignment: .trailing)
                 .fixedSize()
@@ -1529,7 +1526,9 @@ struct ItemRow: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
         .contentShape(Rectangle())
-        .background(selected.contains(item.path) ? Theme.accentSoft : Color.clear)
+        .background(selected.contains(item.path)
+            ? (dark ? Theme.Mole.link.opacity(0.18) : Theme.accentSoft)
+            : Color.clear)
     }
 }
 

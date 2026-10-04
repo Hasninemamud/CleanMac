@@ -56,6 +56,21 @@ struct ItemsResponse: Codable {
     private enum CodingKeys: String, CodingKey { case items }
 }
 
+struct CleanScanResponse: Codable {
+    let junk: [ScanItem]
+    let installers: [ScanItem]
+    let purge: [ScanItem]
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        junk = try c.decodeIfPresent([ScanItem].self, forKey: .junk) ?? []
+        installers = try c.decodeIfPresent([ScanItem].self, forKey: .installers) ?? []
+        purge = try c.decodeIfPresent([ScanItem].self, forKey: .purge) ?? []
+    }
+
+    private enum CodingKeys: String, CodingKey { case junk, installers, purge }
+}
+
 struct AppsResponse: Codable {
     let apps: [ScanItem]
     let orphans: [ScanItem]
