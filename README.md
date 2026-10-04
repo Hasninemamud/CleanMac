@@ -142,10 +142,10 @@ make package      # → dist/CleanMac-<version>-<arch>.dmg (+ .zip)
 Publish a GitHub release:
 
 ```bash
-gh release create v2.2.8 \
-  dist/CleanMac-2.2.8-arm64.dmg dist/CleanMac-2.2.8-arm64.zip \
+gh release create v2.2.9 \
+  dist/CleanMac-2.2.9-arm64.dmg dist/CleanMac-2.2.9-arm64.zip \
   dist/CleanMac-arm64.dmg dist/CleanMac-arm64.zip \
-  --title "CleanMac 2.2.8" --notes "Distinct page colors and animations for Clean, Apps, Analyze, Optimize, and Status."
+  --title "CleanMac 2.2.9" --notes "Mole-aligned sizing (du/mdls/PathSize), leftover patterns, and broader app discovery."
 ```
 
 The app is ad-hoc signed. Developer ID signing and notarization would remove the quarantine workaround above.
