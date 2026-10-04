@@ -23,7 +23,7 @@ struct ContentView: View {
             Theme.Feature.pageBG(for: state.section)
                 .animation(.easeInOut(duration: 0.35), value: state.section)
         )
-        .preferredColorScheme(Theme.Feature.isDark(state.section) ? .dark : .light)
+        .preferredColorScheme(.dark)
         .animation(.spring(response: 0.4, dampingFraction: 0.88), value: state.section)
         .alert("Move to Trash?", isPresented: $state.confirmTrash) {
             Button("Cancel", role: .cancel) {}
@@ -53,53 +53,29 @@ struct ContentView: View {
             CleanScreenView { state.showCleanScreen = false }
                 .frame(minWidth: 800, minHeight: 600)
         }
-        .onAppear {
-            NSApp.appearance = NSAppearance(named: Theme.Feature.isDark(state.section) ? .darkAqua : .aqua)
-        }
-        .onChange(of: state.section) { _, section in
-            NSApp.appearance = NSAppearance(named: Theme.Feature.isDark(section) ? .darkAqua : .aqua)
-        }
+        .onAppear { NSApp.appearance = NSAppearance(named: .darkAqua) }
     }
 
     private var topBar: some View {
         let accent = Theme.Feature.accent(for: state.section)
-        let dark = Theme.Feature.isDark(state.section)
         return ZStack {
             Theme.Feature.rail(for: state.section)
                 .animation(.easeInOut(duration: 0.3), value: state.section)
-            // Accent underline identity per page
-            VStack {
-                Spacer()
-                LinearGradient(
-                    colors: [accent.opacity(0.0), accent.opacity(0.85), accent.opacity(0.0)],
-                    startPoint: .leading, endPoint: .trailing
-                )
-                .frame(height: 2)
-            }
             HStack(spacing: 12) {
-                HStack(spacing: 8) {
-                    BrandLogo(size: 26)
-                    Text("CleanMac")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(dark ? .white : Theme.ink)
-                }
-                .fixedSize()
-
                 Spacer(minLength: 8)
-
                 Button {
                     state.showSettings = true
                     Task { await state.loadSettingsData() }
                 } label: {
                     Image(systemName: "gearshape")
-                        .foregroundColor(dark ? .white.opacity(0.55) : Theme.muted)
+                        .foregroundColor(Theme.muted)
                 }
                 .buttonStyle(.plain)
                 .help("Settings")
 
                 Text(state.statusLine)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(state.busy ? accent : (dark ? .white.opacity(0.55) : Theme.muted))
+                    .foregroundColor(state.busy ? accent : Theme.muted)
                     .lineLimit(1)
                     .frame(maxWidth: 140, alignment: .trailing)
                     .contentTransition(.opacity)
@@ -113,14 +89,12 @@ struct ContentView: View {
             .padding(.trailing, 16)
             .animation(.easeOut(duration: 0.2), value: state.busy)
 
+            // Mole: centered nav capsule with logo + white selected pill
             HStack(spacing: 2) {
+                BrandLogo(size: 22)
+                    .padding(.trailing, 4)
                 ForEach(AppState.NavSection.allCases) { s in
-                    SegmentPill(
-                        title: s.rawValue,
-                        selected: state.section == s,
-                        dark: dark,
-                        accent: Theme.Feature.accent(for: s)
-                    ) {
+                    SegmentPill(title: s.rawValue, selected: state.section == s) {
                         withAnimation(.spring(response: 0.38, dampingFraction: 0.84)) {
                             state.section = s
                             state.selected.removeAll()
@@ -128,15 +102,17 @@ struct ContentView: View {
                     }
                 }
             }
-            .padding(3)
-            .background(dark ? Color.white.opacity(0.10) : Theme.Feature.surface2(for: state.section))
+            .padding(.leading, 6)
+            .padding(.trailing, 3)
+            .padding(.vertical, 3)
+            .background(Color.white.opacity(0.10))
             .clipShape(Capsule())
             .animation(.spring(response: 0.35, dampingFraction: 0.86), value: state.section)
         }
         .frame(height: 50)
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(dark ? Color.white.opacity(0.12) : Theme.Feature.accent(for: state.section).opacity(0.25))
+                .fill(Color.white.opacity(0.08))
                 .frame(height: 1)
         }
     }
@@ -226,7 +202,7 @@ struct ContentView: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
-        .background(Theme.surface)
+        .background(Theme.Feature.surface(for: state.section))
         .overlay(alignment: .top) {
             Rectangle().fill(Theme.line).frame(height: 1)
         }

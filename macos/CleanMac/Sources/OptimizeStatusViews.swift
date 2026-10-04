@@ -38,22 +38,37 @@ struct OptimizeView: View {
                     .frame(width: 300, height: 300)
                     .scaleEffect(pulse ? 1.08 : 1)
 
-                Image(systemName: complete ? "moon.stars.fill" : "moon.fill")
-                    .font(.system(size: 140, weight: .ultraLight))
-                    .foregroundStyle(
-                        LinearGradient(
+                // Mercury (mole.fit Optimize) — cratered grey body, not the Moon.
+                Circle()
+                    .fill(
+                        RadialGradient(
                             colors: [
-                                Theme.Feature.optimize.opacity(complete ? 0.95 : 0.8),
-                                Color.white.opacity(0.55),
+                                Color(red: 0.72, green: 0.70, blue: 0.66),
+                                Color(red: 0.42, green: 0.40, blue: 0.38),
+                                Color(red: 0.22, green: 0.20, blue: 0.19),
                             ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                            center: UnitPoint(x: 0.35, y: 0.32),
+                            startRadius: 4,
+                            endRadius: 110
                         )
                     )
-                    .symbolRenderingMode(.hierarchical)
-                    .shadow(color: Theme.Feature.optimize.opacity(0.35), radius: 24, y: 10)
+                    .frame(width: 200, height: 200)
+                    .overlay {
+                        ZStack {
+                            ForEach(0..<7, id: \.self) { i in
+                                Circle()
+                                    .fill(Color.black.opacity(0.18 + Double(i % 3) * 0.04))
+                                    .frame(width: CGFloat(18 + i * 7), height: CGFloat(14 + i * 5))
+                                    .offset(
+                                        x: CGFloat([-48, 30, -20, 55, -60, 10, 40][i]),
+                                        y: CGFloat([-40, -55, 45, 20, 10, -10, 50][i])
+                                    )
+                            }
+                        }
+                    }
+                    .shadow(color: Color.white.opacity(0.12), radius: 28, y: 10)
                     .offset(y: floatUp ? -8 : 6)
-                    .rotationEffect(.degrees(state.busy ? 8 : 0))
+                    .rotationEffect(.degrees(state.busy ? 10 : 0))
                     .scaleEffect(appeared ? 1 : 0.88)
                     .opacity(appeared ? 1 : 0)
 
@@ -74,16 +89,28 @@ struct OptimizeView: View {
                 value: pulse
             )
 
-            Text(headline)
-                .font(.system(size: 32, weight: .bold))
-                .foregroundColor(Theme.Mole.ink)
+            if complete || state.busy {
+                Text(headline)
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(Theme.Mole.ink)
+                    .multilineTextAlignment(.center)
+                    .contentTransition(.opacity)
+                    .animation(.spring(response: 0.4, dampingFraction: 0.85), value: headline)
+                    .opacity(appeared ? 1 : 0)
+                    .offset(y: appeared ? 0 : 12)
+            } else {
+                VStack(spacing: 8) {
+                    Text("Closest to the sun, swiftest in flight.")
+                    Text("The smallest turn can shape the world.")
+                }
+                .font(.system(size: 20, weight: .regular, design: .serif))
+                .foregroundColor(Theme.Mole.ink.opacity(0.92))
                 .multilineTextAlignment(.center)
-                .contentTransition(.opacity)
-                .animation(.spring(response: 0.4, dampingFraction: 0.85), value: headline)
                 .opacity(appeared ? 1 : 0)
                 .offset(y: appeared ? 0 : 12)
+            }
 
-            Text(state.busy ? "Working…" : subtitle)
+            Text(state.busy ? "Working…" : (complete ? subtitle : "Mercury tends Optimize"))
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(Theme.Mole.muted)
                 .multilineTextAlignment(.center)
@@ -103,11 +130,12 @@ struct OptimizeView: View {
                     .frame(minWidth: 220)
                     .padding(.horizontal, 36)
                     .padding(.vertical, 14)
-                    .background(complete ? Theme.Feature.optimize.opacity(0.28) : Theme.Mole.cta)
+                    .background(complete ? Theme.Feature.surface2(for: .optimize) : Theme.Mole.cta)
                     .overlay(
-                        Capsule().stroke(complete ? Theme.Feature.optimize.opacity(0.55) : Theme.Mole.line, lineWidth: 1)
+                        Capsule().stroke(complete ? Theme.Mole.line : Color.clear, lineWidth: 1)
                     )
                     .clipShape(Capsule())
+                    .shadow(color: Color.white.opacity(complete || state.busy ? 0 : 0.16), radius: 18, y: 4)
                     .animation(.easeOut(duration: 0.25), value: complete)
             }
             .buttonStyle(PressableCapsuleStyle())
@@ -143,7 +171,7 @@ struct OptimizeView: View {
     private var buttonTitle: String {
         if complete { return "Rest, CleanMac" }
         if runnableIDs.isEmpty { return "Refresh catalog" }
-        return "Run maintenance"
+        return "Optimize"
     }
 
     private func primaryAction() async {
@@ -165,13 +193,14 @@ struct OptimizeView: View {
 
 // MARK: - Status (Overview dashboard)
 
+/// Status (Sun) accents from mole.fit — lime health, amber heat, muted gold.
 private enum Dash {
-    static let blue = Color(red: 0.27, green: 0.53, blue: 0.99)
-    static let purple = Color(red: 0.55, green: 0.36, blue: 0.96)
-    static let pink = Color(red: 0.93, green: 0.28, blue: 0.60)
-    static let amber = Color(red: 0.96, green: 0.62, blue: 0.04)
-    static let teal = Color(red: 0.08, green: 0.72, blue: 0.65)
-    static let green = Color(red: 0.13, green: 0.77, blue: 0.37)
+    static let blue = Color(red: 0.45, green: 0.72, blue: 0.78)
+    static let purple = Color(red: 0.72, green: 0.62, blue: 0.42)
+    static let pink = Color(red: 0.96, green: 0.55, blue: 0.28)
+    static let amber = Color(red: 0.96, green: 0.62, blue: 0.22)
+    static let teal = Color(red: 0.55, green: 0.78, blue: 0.55)
+    static let green = Color(red: 0.72, green: 0.83, blue: 0.36)
 }
 
 struct StatusView: View {
@@ -215,7 +244,7 @@ struct StatusView: View {
                                 history: historyGPU, chart: .line
                             )
                             statusMiniCard(
-                                title: "MEMORY", tint: Theme.accent,
+                                title: "MEMORY", tint: Dash.amber,
                                 badge: "Pressure \(Int(((m.memPressure ?? memRatio(m)) * 100).rounded()))%",
                                 primary: pct(memRatio(m) * 100),
                                 footer: "\(ByteFormat.string(Int64(m.memUsed))) · \(ByteFormat.string(Int64(m.swapUsed ?? 0))) swap",
@@ -307,9 +336,15 @@ struct StatusView: View {
                             )
                         )
                         .frame(width: 56, height: 56)
-                    Image(systemName: score >= 80 ? "checkmark.seal.fill" : "sun.max.fill")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundStyle(tint)
+                    Image(systemName: "sun.max.fill")
+                        .font(.system(size: 26, weight: .medium))
+                        .foregroundStyle(
+                            RadialGradient(
+                                colors: [Dash.amber, Color(red: 0.85, green: 0.35, blue: 0.12)],
+                                center: .center, startRadius: 1, endRadius: 18
+                            )
+                        )
+                        .shadow(color: Dash.amber.opacity(0.55), radius: 10)
                 }
             }
             .frame(maxHeight: .infinity, alignment: .center)
@@ -508,7 +543,9 @@ struct StatusView: View {
                     onQuit: { state.quitProcess(pid: p.pid) }
                 )
                 .padding(.vertical, 8)
-                .background(selectedPID == p.pid ? Theme.accentSoft : (idx % 2 == 0 ? Color.clear : Theme.surface2.opacity(0.35)))
+                .background(selectedPID == p.pid
+                            ? Theme.Feature.status.opacity(0.16)
+                            : (idx % 2 == 0 ? Color.clear : Theme.Feature.surface2(for: .status).opacity(0.45)))
                 .contentShape(Rectangle())
                 .onTapGesture { selectedPID = p.pid }
                 .contextMenu {

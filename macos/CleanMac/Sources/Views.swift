@@ -121,7 +121,7 @@ struct CleanView: View {
                     .padding(.vertical, 14)
                     .background(Theme.Mole.cta)
                     .clipShape(Capsule())
-                    .shadow(color: .black.opacity(0.25), radius: 16, y: 6)
+                    .shadow(color: Color.white.opacity(0.28), radius: 22, y: 6)
             }
             .buttonStyle(PressableCapsuleStyle())
             .disabled(state.busy)
@@ -472,8 +472,7 @@ struct SoftwareView: View {
                     ForEach(AppState.appsPrimarySegments) { s in
                         SegmentPill(
                             title: s.rawValue,
-                            selected: state.softwareSegment == s,
-                            accent: Theme.Feature.apps
+                            selected: state.softwareSegment == s
                         ) {
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) {
                                 state.softwareSegment = s
@@ -502,9 +501,9 @@ struct SoftwareView: View {
                     .help("Refresh")
                 }
                 .padding(3)
-                .background(Theme.Feature.surface2(for: .software))
+                .background(Color.white.opacity(0.08))
                 .clipShape(Capsule())
-                .shadow(color: Theme.Feature.apps.opacity(pulseAccent ? 0.18 : 0.06), radius: 10, y: 2)
+                .shadow(color: Theme.Feature.apps.opacity(pulseAccent ? 0.16 : 0.04), radius: 10, y: 2)
 
                 Spacer()
 
@@ -622,7 +621,7 @@ struct SoftwareView: View {
                             Text("Also remove data")
                         }
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(Theme.danger)
+                        .foregroundColor(Theme.Feature.apps)
                     }
                     .buttonStyle(.plain)
 
@@ -631,7 +630,7 @@ struct SoftwareView: View {
                     }
                     .buttonStyle(.plain)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Theme.danger)
+                    .foregroundColor(Theme.muted)
                     .disabled(picked.isEmpty)
                 }
             }
@@ -643,11 +642,12 @@ struct SoftwareView: View {
             } label: {
                 Text(picked.isEmpty ? "Remove" : "Remove \(picked.count)")
                     .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(Theme.bg)
+                    .foregroundColor(Theme.Mole.ctaInk)
                     .padding(.horizontal, 28)
                     .padding(.vertical, 12)
-                    .background(picked.isEmpty ? Theme.muted : Theme.ink)
+                    .background(picked.isEmpty ? Theme.surface2 : Theme.Mole.cta)
                     .clipShape(Capsule())
+                    .shadow(color: Color.white.opacity(picked.isEmpty ? 0 : 0.18), radius: 16, y: 4)
             }
             .buttonStyle(.plain)
             .disabled(picked.isEmpty || state.busy)
@@ -979,11 +979,11 @@ struct AppsUninstallRow: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundColor(Theme.muted.opacity(0.7))
 
-            CheckMark(isOn: isOn, disabled: false)
+            CheckMark(isOn: isOn, disabled: false, accent: Theme.Feature.apps)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(selected.contains(app.path) ? Theme.accentSoft : Color.clear)
+        .background(selected.contains(app.path) ? Theme.Feature.apps.opacity(0.16) : Color.clear)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .contentShape(Rectangle())
         .onTapGesture { isOn.wrappedValue.toggle() }
@@ -1046,11 +1046,28 @@ struct AnalyzeView: View {
                                 : .spring(response: 0.4, dampingFraction: 0.85),
                             value: state.busy
                         )
-                    Image(systemName: "globe")
-                        .font(.system(size: 44, weight: .ultraLight))
-                        .foregroundStyle(Theme.Feature.analyze.opacity(0.85))
-                        .symbolRenderingMode(.hierarchical)
+                    // Jupiter (mole.fit Analyze) — banded warm sphere
+                    Circle()
+                        .fill(
+                            AngularGradient(
+                                colors: [
+                                    Color(red: 0.85, green: 0.72, blue: 0.55),
+                                    Color(red: 0.64, green: 0.42, blue: 0.28),
+                                    Color(red: 0.90, green: 0.82, blue: 0.68),
+                                    Color(red: 0.55, green: 0.38, blue: 0.28),
+                                    Color(red: 0.78, green: 0.58, blue: 0.40),
+                                    Color(red: 0.85, green: 0.72, blue: 0.55),
+                                ],
+                                center: .center
+                            )
+                        )
+                        .frame(width: 56, height: 56)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white.opacity(0.15), lineWidth: 1)
+                        )
                         .rotationEffect(.degrees(spin ? 360 : 0))
+                        .shadow(color: Theme.Feature.analyze.opacity(0.45), radius: 12, y: 4)
                 }
                 Spacer()
             }
@@ -1099,7 +1116,8 @@ struct AnalyzeView: View {
                             .padding(.vertical, 8)
                             .background(
                                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .fill(state.analyzeSelectedPath == child.path ? Theme.accentSoft : Color.clear)
+                                    .fill(state.analyzeSelectedPath == child.path
+                                          ? Theme.Feature.analyze.opacity(0.22) : Color.clear)
                             )
                         }
                         .buttonStyle(.plain)
@@ -1221,9 +1239,9 @@ struct AnalyzeView: View {
         return HStack(spacing: 8) {
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
-                    Capsule().fill(Theme.surface2)
+                    Capsule().fill(Theme.Feature.surface2(for: .analyze))
                     Capsule()
-                        .fill(Theme.ink.opacity(0.55))
+                        .fill(Theme.Feature.analyze.opacity(0.85))
                         .frame(width: max(4, geo.size.width * CGFloat(used) / CGFloat(total)))
                 }
             }
@@ -1531,7 +1549,7 @@ struct ItemRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            CheckMark(isOn: isOn, disabled: blocked)
+            CheckMark(isOn: isOn, disabled: blocked, accent: dark ? Theme.Mole.link : Theme.Feature.apps)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name)

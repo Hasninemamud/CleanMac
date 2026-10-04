@@ -37,7 +37,8 @@ struct SettingsView: View {
             .padding(16)
             Spacer(minLength: 0)
         }
-        .background(Theme.bg)
+        .background(Theme.Mole.bg)
+        .preferredColorScheme(.dark)
         .task { await state.loadSettingsData() }
     }
 

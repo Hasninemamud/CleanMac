@@ -2,26 +2,26 @@ import SwiftUI
 import AppKit
 
 enum Theme {
-    // Warm cream light theme (mockup: #F5F1E8 / #2D2926 / #D4A373 / #386641)
-    static let bg = Color(red: 0.961, green: 0.945, blue: 0.910)       // #F5F1E8
-    static let rail = Color(red: 0.922, green: 0.894, blue: 0.831)     // #EBE4D4
-    static let surface = Color(red: 1.0, green: 0.984, blue: 0.957)    // #FFFBF4
-    static let surface2 = Color(red: 0.929, green: 0.902, blue: 0.847) // #EDE6D8
-    static let ink = Color(red: 0.176, green: 0.161, blue: 0.149)      // #2D2926
-    static let muted = Color(red: 0.478, green: 0.439, blue: 0.400)    // #7A7066
-    static let line = Color(red: 0.176, green: 0.161, blue: 0.149).opacity(0.12)
-    static let accent = Color(red: 0.831, green: 0.639, blue: 0.451)   // #D4A373
-    static let accentSoft = Color(red: 0.831, green: 0.639, blue: 0.451).opacity(0.16)
-    static let ok = Color(red: 0.220, green: 0.400, blue: 0.255)       // #386641
-    static let warn = Color(red: 0.78, green: 0.55, blue: 0.22)
-    static let danger = Color(red: 0.69, green: 0.26, blue: 0.18)
+    // Mole carbon base (dark navy chrome — overridden per-page by Feature.pageBG).
+    static let bg = Color(red: 0.118, green: 0.149, blue: 0.235)       // #1E263C Earth default
+    static let rail = Color(red: 0.094, green: 0.118, blue: 0.188)      // #181E30
+    static let surface = Color(red: 0.157, green: 0.188, blue: 0.275)   // #283046
+    static let surface2 = Color(red: 0.196, green: 0.227, blue: 0.314)  // #323A50
+    static let ink = Color.white
+    static let muted = Color.white.opacity(0.55)
+    static let line = Color.white.opacity(0.12)
+    static let accent = Color(red: 0.357, green: 0.557, blue: 0.937)    // Earth link blue
+    static let accentSoft = Color(red: 0.357, green: 0.557, blue: 0.937).opacity(0.18)
+    static let ok = Color(red: 0.72, green: 0.83, blue: 0.36)           // Status lime
+    static let warn = Color(red: 0.96, green: 0.62, blue: 0.22)
+    static let danger = Color(red: 1.0, green: 0.478, blue: 0.361)      // Mars salmon
 
-    /// Mole-style dark navy chrome for Clean / Optimize heroes.
+    /// Shared Mole chrome tokens (white CTA, blue link).
     enum Mole {
-        static let bg = Color(red: 0.110, green: 0.145, blue: 0.231)       // #1C253B
-        static let rail = Color(red: 0.090, green: 0.118, blue: 0.188)     // #171E30
-        static let surface = Color(red: 0.145, green: 0.184, blue: 0.275)  // #252F46
-        static let surface2 = Color(red: 0.180, green: 0.220, blue: 0.320) // #2E3851
+        static let bg = Color(red: 0.118, green: 0.149, blue: 0.235)
+        static let rail = Color(red: 0.094, green: 0.118, blue: 0.188)
+        static let surface = Color(red: 0.157, green: 0.188, blue: 0.275)
+        static let surface2 = Color(red: 0.196, green: 0.227, blue: 0.314)
         static let ink = Color.white
         static let muted = Color.white.opacity(0.55)
         static let line = Color.white.opacity(0.12)
@@ -30,13 +30,13 @@ enum Theme {
         static let ctaInk = Color(red: 0.110, green: 0.145, blue: 0.231)
     }
 
-    /// Unique palette per nav feature (full-page color identity).
+    /// Planet pages from mole.fit (Earth / Mars / Mercury / Jupiter / Sun).
     enum Feature {
-        static let clean = Color(red: 0.35, green: 0.55, blue: 0.98)      // blue
-        static let apps = Color(red: 0.08, green: 0.65, blue: 0.58)       // teal
-        static let analyze = Color(red: 0.55, green: 0.35, blue: 0.90)    // purple
-        static let optimize = Color(red: 0.96, green: 0.55, blue: 0.22)   // orange
-        static let status = Color(red: 0.22, green: 0.55, blue: 0.32)     // green
+        static let clean = Color(red: 0.357, green: 0.557, blue: 0.937)     // Earth blue
+        static let apps = Color(red: 1.0, green: 0.478, blue: 0.361)        // Mars salmon #FF7A5C
+        static let analyze = Color(red: 0.769, green: 0.643, blue: 0.518)   // Jupiter tan
+        static let optimize = Color(red: 0.784, green: 0.769, blue: 0.745)  // Mercury grey
+        static let status = Color(red: 0.722, green: 0.831, blue: 0.361)    // Sun lime
 
         static func accent(for section: AppState.NavSection) -> Color {
             switch section {
@@ -50,47 +50,49 @@ enum Theme {
 
         static func pageBG(for section: AppState.NavSection) -> Color {
             switch section {
-            case .clean: return Color(red: 0.10, green: 0.14, blue: 0.26)      // navy
-            case .software: return Color(red: 0.90, green: 0.96, blue: 0.95)   // mint
-            case .analyze: return Color(red: 0.94, green: 0.91, blue: 0.98)    // lilac
-            case .optimize: return Color(red: 0.17, green: 0.11, blue: 0.07)   // amber dark
-            case .status: return Color(red: 0.92, green: 0.96, blue: 0.93)     // sage
+            case .clean: return Color(red: 0.118, green: 0.149, blue: 0.235)    // #1E263C
+            case .software: return Color(red: 0.102, green: 0.078, blue: 0.071)  // #1A1412 Mars
+            case .analyze: return Color(red: 0.239, green: 0.169, blue: 0.122)   // #3D2B1F Jupiter
+            case .optimize: return Color(red: 0.153, green: 0.145, blue: 0.149)  // #272526 Mercury
+            case .status: return Color(red: 0.165, green: 0.157, blue: 0.122)    // #2A281F Sun
             }
         }
 
         static func rail(for section: AppState.NavSection) -> Color {
             switch section {
-            case .clean: return Color(red: 0.08, green: 0.11, blue: 0.20)
-            case .software: return Color(red: 0.78, green: 0.92, blue: 0.90)
-            case .analyze: return Color(red: 0.86, green: 0.80, blue: 0.95)
-            case .optimize: return Color(red: 0.13, green: 0.08, blue: 0.05)
-            case .status: return Color(red: 0.82, green: 0.91, blue: 0.85)
+            case .clean: return Color(red: 0.094, green: 0.118, blue: 0.188)
+            case .software: return Color(red: 0.082, green: 0.059, blue: 0.055)
+            case .analyze: return Color(red: 0.196, green: 0.133, blue: 0.094)
+            case .optimize: return Color(red: 0.118, green: 0.110, blue: 0.114)
+            case .status: return Color(red: 0.133, green: 0.125, blue: 0.094)
             }
         }
 
         static func surface(for section: AppState.NavSection) -> Color {
             switch section {
-            case .clean: return Mole.surface
-            case .software: return Color(red: 0.97, green: 1.0, blue: 0.99)
-            case .analyze: return Color(red: 0.99, green: 0.97, blue: 1.0)
-            case .optimize: return Color(red: 0.22, green: 0.15, blue: 0.10)
-            case .status: return Color(red: 0.98, green: 1.0, blue: 0.98)
+            case .clean: return Color(red: 0.145, green: 0.184, blue: 0.275)
+            case .software: return Color(red: 0.145, green: 0.110, blue: 0.106)  // #251C1B
+            case .analyze: return Color(red: 0.290, green: 0.216, blue: 0.165)   // #4A372A
+            case .optimize: return Color(red: 0.196, green: 0.188, blue: 0.184)  // #32302F
+            case .status: return Color(red: 0.216, green: 0.204, blue: 0.161)    // #373429
             }
         }
 
         static func surface2(for section: AppState.NavSection) -> Color {
             switch section {
-            case .clean: return Mole.surface2
-            case .software: return Color(red: 0.82, green: 0.93, blue: 0.91)
-            case .analyze: return Color(red: 0.90, green: 0.85, blue: 0.96)
-            case .optimize: return Color(red: 0.28, green: 0.18, blue: 0.12)
-            case .status: return Color(red: 0.86, green: 0.93, blue: 0.88)
+            case .clean: return Color(red: 0.180, green: 0.220, blue: 0.320)
+            case .software: return Color(red: 0.192, green: 0.145, blue: 0.137)  // #312523
+            case .analyze: return Color(red: 0.349, green: 0.263, blue: 0.200)   // #594333
+            case .optimize: return Color(red: 0.255, green: 0.243, blue: 0.235)  // #413E3C
+            case .status: return Color(red: 0.275, green: 0.259, blue: 0.204)    // #464234
             }
         }
 
-        static func isDark(_ section: AppState.NavSection) -> Bool {
-            section == .clean || section == .optimize
-        }
+        /// All Mole pages are dark planet chrome.
+        static func isDark(_ section: AppState.NavSection) -> Bool { true }
+
+        /// CTA label ink — dark charcoal on white pills (matches mole.fit).
+        static var ctaInk: Color { Mole.ctaInk }
     }
 }
 
@@ -123,17 +125,17 @@ struct BrandLogo: View {
                     .interpolation(.high)
                     .aspectRatio(contentMode: .fill)
             } else {
-                RoundedRectangle(cornerRadius: size * 0.22, style: .continuous)
-                    .fill(Theme.bg) // cream
+                Circle()
+                    .fill(Color.white)
                     .overlay {
                         Text("C")
-                            .font(.system(size: size * 0.45, weight: .bold))
-                            .foregroundColor(Theme.ink)
+                            .font(.system(size: size * 0.42, weight: .bold))
+                            .foregroundColor(Theme.Mole.ctaInk)
                     }
             }
         }
         .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: size * 0.22, style: .continuous))
+        .clipShape(Circle())
     }
 
     private var bundleLogo: NSImage? {
@@ -153,15 +155,11 @@ struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12, weight: .bold))
-            .foregroundColor(Theme.ink)
+            .foregroundColor(Theme.Mole.ctaInk)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(Theme.accent.opacity(disabled ? 0.4 : (configuration.isPressed ? 0.85 : 1)))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Theme.ink.opacity(0.18), lineWidth: 1)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .background(Color.white.opacity(disabled ? 0.4 : (configuration.isPressed ? 0.85 : 1)))
+            .clipShape(Capsule())
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
     }
 }
@@ -175,10 +173,9 @@ struct SoftButtonStyle: ButtonStyle {
             .padding(.vertical, 7)
             .background(Theme.surface)
             .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Theme.ink.opacity(0.22), lineWidth: 1)
+                Capsule().stroke(Theme.line, lineWidth: 1)
             )
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(Capsule())
             .opacity(configuration.isPressed ? 0.85 : 1)
             .fixedSize()
     }
@@ -192,7 +189,7 @@ struct DangerButtonStyle: ButtonStyle {
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
             .background(Theme.danger.opacity(configuration.isPressed ? 0.85 : 1))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .clipShape(Capsule())
             .fixedSize()
     }
 }
@@ -200,7 +197,7 @@ struct DangerButtonStyle: ButtonStyle {
 struct SegmentPill: View {
     let title: String
     let selected: Bool
-    var dark = false
+    var dark = true
     var accent: Color? = nil
     let action: () -> Void
 
@@ -209,13 +206,12 @@ struct SegmentPill: View {
             Text(title)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(selected
-                    ? (dark ? .white : Theme.ink)
-                    : (dark ? Theme.Mole.muted : Theme.muted))
+                    ? Theme.Mole.ctaInk
+                    : Theme.Mole.muted)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
-                .background(selected
-                    ? (dark ? (accent ?? Theme.Mole.cta) : (accent?.opacity(0.22) ?? Theme.surface))
-                    : Color.clear)
+                // Mole: selected tab is always a white pill.
+                .background(selected ? Theme.Mole.cta : Color.clear)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -248,6 +244,7 @@ struct SafetyBadge: View {
 struct CheckMark: View {
     @Binding var isOn: Bool
     var disabled = false
+    var accent: Color = Theme.accent
 
     var body: some View {
         Button {
@@ -255,7 +252,7 @@ struct CheckMark: View {
         } label: {
             Image(systemName: isOn ? "checkmark.square.fill" : "square")
                 .font(.system(size: 15, weight: .medium))
-                .foregroundColor(disabled ? Theme.muted.opacity(0.4) : (isOn ? Theme.accent : Theme.muted))
+                .foregroundColor(disabled ? Theme.muted.opacity(0.4) : (isOn ? accent : Theme.muted))
         }
         .buttonStyle(.plain)
         .disabled(disabled)
@@ -314,7 +311,7 @@ struct RingMeter: View {
         .frame(maxWidth: .infinity)
         .background(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Theme.surface)
+                .fill(Theme.Feature.surface(for: .status))
                 .shadow(color: color.opacity(0.12), radius: 16, y: 6)
         )
         .overlay(
@@ -371,7 +368,7 @@ struct BarMeter: View {
         .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Theme.surface)
+                .fill(Theme.Feature.surface(for: .status))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
@@ -396,7 +393,6 @@ struct Sparkline: View {
             }
 
             ZStack {
-                // grid
                 VStack(spacing: 0) {
                     ForEach(0..<3, id: \.self) { _ in
                         Spacer()
