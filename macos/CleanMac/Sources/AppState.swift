@@ -199,13 +199,21 @@ final class AppState {
         }
     }
 
+    /// Prevents stacking Clean/Status scans when UI fires scan twice.
+    private var scanning = false
+
     func scan(quiet: Bool = false) async {
+        if scanning { return }
+        scanning = true
         if !quiet {
             busy = true
             errorMessage = nil
             statusLine = "Scanning…"
         }
-        defer { if !quiet { busy = false } }
+        defer {
+            scanning = false
+            if !quiet { busy = false }
+        }
         do {
             switch section {
             case .clean:

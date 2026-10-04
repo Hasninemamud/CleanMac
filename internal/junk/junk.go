@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/Hasninemamud/CleanMac/internal/fsutil"
@@ -12,7 +13,8 @@ import (
 	"github.com/Hasninemamud/CleanMac/internal/whitelist"
 )
 
-const sizeCap = 40_000
+// ponytail: per-dir entry cap — raise if sizes look truncated on huge caches.
+const sizeCap = 12_000
 
 type Rule struct {
 	Category     string
@@ -21,30 +23,16 @@ type Rule struct {
 	Explanation  string
 }
 
+// Rules are non-overlapping. Library/Caches is scanned once; children get categories by name.
 func Rules() []Rule {
 	return []Rule{
 		{Category: "userCaches", RelativePath: "Library/Caches", Safety: "safe", Explanation: "User application caches. Apps rebuild them."},
 		{Category: "logs", RelativePath: "Library/Logs", Safety: "safe", Explanation: "Application logs in your home Library."},
 		{Category: "trash", RelativePath: ".Trash", Safety: "review", Explanation: "Items already in Trash — emptying is optional."},
-		{Category: "temp", RelativePath: "Library/Caches/TemporaryItems", Safety: "safe", Explanation: "Temporary items cache."},
 		{Category: "xcode", RelativePath: "Library/Developer/Xcode/DerivedData", Safety: "safe", Explanation: "Xcode build intermediates."},
 		{Category: "xcode", RelativePath: "Library/Developer/CoreSimulator/Caches", Safety: "safe", Explanation: "Simulator caches."},
 		{Category: "packageManagers", RelativePath: ".npm/_cacache", Safety: "safe", Explanation: "npm package cache."},
-		{Category: "packageManagers", RelativePath: "Library/Caches/CocoaPods", Safety: "safe", Explanation: "CocoaPods cache."},
-		{Category: "packageManagers", RelativePath: "Library/Caches/org.swift.swiftpm", Safety: "safe", Explanation: "Swift Package Manager cache."},
-		{Category: "packageManagers", RelativePath: "Library/Caches/pip", Safety: "safe", Explanation: "pip package cache."},
-		{Category: "packageManagers", RelativePath: "Library/Caches/Homebrew", Safety: "safe", Explanation: "Homebrew download cache."},
 		{Category: "packageManagers", RelativePath: ".cache/yarn", Safety: "safe", Explanation: "Yarn cache."},
-		{Category: "packageManagers", RelativePath: "Library/Caches/Yarn", Safety: "safe", Explanation: "Yarn cache (Library)."},
-		{Category: "packageManagers", RelativePath: "Library/Caches/ms-playwright", Safety: "safe", Explanation: "Playwright browser downloads."},
-		{Category: "misc", RelativePath: "Library/Caches/com.spotify.client", Safety: "safe", Explanation: "Spotify cache."},
-		{Category: "browsers", RelativePath: "Library/Caches/com.apple.Safari", Safety: "safe", Explanation: "Safari cache."},
-		{Category: "browsers", RelativePath: "Library/Caches/Google/Chrome", Safety: "safe", Explanation: "Chrome cache."},
-		{Category: "browsers", RelativePath: "Library/Caches/Firefox", Safety: "safe", Explanation: "Firefox cache."},
-		{Category: "browsers", RelativePath: "Library/Caches/Microsoft Edge", Safety: "safe", Explanation: "Edge cache."},
-		{Category: "browsers", RelativePath: "Library/Caches/Arc", Safety: "safe", Explanation: "Arc browser cache."},
-		{Category: "browsers", RelativePath: "Library/Caches/company.thebrowser.Browser", Safety: "safe", Explanation: "Arc/Dia browser cache."},
-		{Category: "browsers", RelativePath: "Library/Caches/BraveSoftware", Safety: "safe", Explanation: "Brave browser cache."},
 	}
 }
 
@@ -58,6 +46,38 @@ var CategoryLabels = map[string]string{
 	"browsers":        "Browsers",
 	"misc":            "Misc",
 	"other":           "Other",
+}
+
+func classifyCacheChild(name string) (category, explanation string) {
+	low := strings.ToLower(name)
+	switch {
+	case strings.Contains(low, "safari"),
+		strings.Contains(low, "chrome"),
+		strings.Contains(low, "firefox"),
+		strings.Contains(low, "edge"),
+		strings.Contains(low, "brave"),
+		strings.Contains(low, "arc"),
+		strings.Contains(low, "thebrowser"),
+		low == "google", // Library/Caches/Google/…
+		low == "chromium":
+		return "browsers", "Browser cache"
+	case strings.Contains(low, "cocoapods"),
+		strings.Contains(low, "swiftpm"),
+		strings.Contains(low, "pip"),
+		strings.Contains(low, "homebrew"),
+		strings.Contains(low, "yarn"),
+		strings.Contains(low, "playwright"),
+		strings.Contains(low, "npm"),
+		strings.Contains(low, "gradle"),
+		strings.Contains(low, "go-build"):
+		return "packageManagers", "Developer cache"
+	case strings.Contains(low, "spotify"):
+		return "misc", "Spotify cache"
+	case low == "temporaryitems" || strings.Contains(low, "temporary"):
+		return "temp", "Temporary items cache"
+	default:
+		return "userCaches", "User application caches. Apps rebuild them."
+	}
 }
 
 func enumerateTopLevel(target string, rule Rule) []jsonout.Item {
@@ -81,32 +101,47 @@ func enumerateTopLevel(target string, rule Rule) []jsonout.Item {
 	}
 
 	type candidate struct {
-		full       string
-		name       string
-		isDir      bool
-		size       int64
-		modifiedAt float64
+		full, name, category, explanation string
+		isDir                             bool
+		size                              int64
+		modifiedAt                        float64
 	}
+
+	isCachesRoot := rule.Category == "userCaches" && strings.HasSuffix(target, "Library/Caches")
 	cands := make([]candidate, 0, len(entries))
 	for _, ent := range entries {
 		full := filepath.Join(target, ent.Name())
+		typ := ent.Type()
+		if typ&os.ModeSymlink != 0 {
+			continue
+		}
+		if whitelist.Excludes(full) || safety.IsBlocked(full, safety.Opts{}) {
+			continue
+		}
+		cat, expl := rule.Category, rule.Explanation
+		if isCachesRoot {
+			cat, expl = classifyCacheChild(ent.Name())
+		}
+		c := candidate{
+			full: full, name: ent.Name(), category: cat, explanation: expl, isDir: ent.IsDir(),
+		}
+		if ent.IsDir() {
+			cands = append(cands, c)
+			continue
+		}
+		if !typ.IsRegular() {
+			continue
+		}
 		info, err := ent.Info()
 		if err != nil {
 			continue
 		}
-		if whitelist.Excludes(full) || safety.IsBlocked(full, safety.Opts{}) || info.Mode()&os.ModeSymlink != 0 {
-			continue
-		}
-		if !ent.IsDir() && !info.Mode().IsRegular() {
-			continue
-		}
-		cands = append(cands, candidate{
-			full: full, name: ent.Name(), isDir: ent.IsDir(),
-			size: info.Size(), modifiedAt: float64(info.ModTime().UnixMilli()),
-		})
+		c.size = info.Size()
+		c.modifiedAt = float64(info.ModTime().UnixMilli())
+		cands = append(cands, c)
 	}
 
-	// ponytail: parallel size walk; ceiling ~8 workers — bump if Clean still feels slow on huge caches.
+	// ponytail: parallel size walk; ceiling 8 workers.
 	sem := make(chan struct{}, 8)
 	var wg sync.WaitGroup
 	for i := range cands {
@@ -134,7 +169,7 @@ func enumerateTopLevel(target string, rule Rule) []jsonout.Item {
 		}
 		results = append(results, jsonout.Item{
 			Path: c.full, Name: c.name, ByteSize: c.size, Safety: s,
-			Category: rule.Category, Explanation: rule.Explanation,
+			Category: c.category, Explanation: c.explanation,
 			ModifiedAt: c.modifiedAt, IsDirectory: c.isDir,
 		})
 	}

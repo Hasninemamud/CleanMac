@@ -20,9 +20,10 @@ var artifactNames = map[string]bool{
 	".parcel-cache": true, "coverage": true,
 }
 
+// ponytail: skip Documents (huge trees); Clean can add it back behind a deep-scan flag later.
 var defaultRoots = []string{
 	"Projects", "Developer", "dev", "Dev", "GitHub", "src", "code", "Code",
-	"Documents", "Desktop", "Work", "workspace", "Workspace",
+	"Desktop", "Work", "workspace", "Workspace",
 }
 
 func walkForArtifacts(root string, out *[]jsonout.Item, maxDepth, max, depth int) {
@@ -54,7 +55,7 @@ func walkForArtifacts(root string, out *[]jsonout.Item, maxDepth, max, depth int
 		if artifactNames[ent.Name()] {
 			mtime := info.ModTime()
 			ageDays := time.Since(mtime).Hours() / 24
-			byteSize := fsutil.DirectorySize(full, 30_000)
+			byteSize := fsutil.DirectorySize(full, 8_000)
 			if byteSize > 0 {
 				intended := "safe"
 				if ageDays < 7 {
@@ -90,8 +91,8 @@ func Scan(onProgress func(int, string)) []jsonout.Item {
 				onProgress(i, root)
 			}
 			var local []jsonout.Item
-			// ponytail: shallow project walk (depth 3, 120 hits) — raise if purge misses deep monorepos.
-			walkForArtifacts(root, &local, 3, 120, 0)
+			// ponytail: shallow project walk (depth 2, 80 hits) — raise if purge misses deep monorepos.
+			walkForArtifacts(root, &local, 2, 80, 0)
 			buckets[i].items = local
 		}(i, root)
 	}

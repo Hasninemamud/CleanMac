@@ -24,7 +24,7 @@ func Exists(p string) bool {
 // maxEntries caps work so Clean scans stay responsive on huge cache trees.
 func DirectorySize(dir string, maxEntries int) int64 {
 	if maxEntries <= 0 {
-		maxEntries = 50_000
+		maxEntries = 12_000
 	}
 	if safety.IsBlocked(dir, safety.Opts{}) {
 		return 0
@@ -44,23 +44,28 @@ func DirectorySize(dir string, maxEntries int) int64 {
 			if count > maxEntries {
 				return total
 			}
-			full := filepath.Join(current, ent.Name())
-			if safety.IsBlocked(full, safety.Opts{}) {
+			typ := ent.Type()
+			// DirEntry.Type avoids a stat for the common dir/symlink cases.
+			if typ&os.ModeSymlink != 0 {
+				continue
+			}
+			if ent.IsDir() {
+				full := filepath.Join(current, ent.Name())
+				// ponytail: only block-check directories — file-level checks doubled scan time.
+				if safety.IsBlocked(full, safety.Opts{}) {
+					continue
+				}
+				stack = append(stack, full)
+				continue
+			}
+			if !typ.IsRegular() {
 				continue
 			}
 			info, err := ent.Info()
 			if err != nil {
 				continue
 			}
-			mode := info.Mode()
-			if mode&os.ModeSymlink != 0 {
-				continue
-			}
-			if ent.IsDir() {
-				stack = append(stack, full)
-			} else if mode.IsRegular() {
-				total += info.Size()
-			}
+			total += info.Size()
 		}
 	}
 	return total
@@ -76,22 +81,26 @@ func ShallowFolderSize(dir string) int64 {
 	}
 	var total int64
 	for _, ent := range entries {
+		typ := ent.Type()
+		if typ&os.ModeSymlink != 0 {
+			continue
+		}
 		full := filepath.Join(dir, ent.Name())
-		if safety.IsBlocked(full, safety.Opts{}) {
+		if ent.IsDir() {
+			if safety.IsBlocked(full, safety.Opts{}) {
+				continue
+			}
+			total += DirectorySize(full, 12_000)
+			continue
+		}
+		if !typ.IsRegular() {
 			continue
 		}
 		info, err := ent.Info()
 		if err != nil {
 			continue
 		}
-		if info.Mode()&os.ModeSymlink != 0 {
-			continue
-		}
-		if ent.IsDir() {
-			total += DirectorySize(full, 200_000)
-		} else if info.Mode().IsRegular() {
-			total += info.Size()
-		}
+		total += info.Size()
 	}
 	return total
 }
