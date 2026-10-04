@@ -226,9 +226,17 @@ final class AppState {
                 switch softwareSegment {
                 case .caches, .leftovers, .orphans, .uninstall:
                     if force || apps.isEmpty {
-                        let r = try await CLIExecutor.shared.run(["apps", "--json"], as: AppsResponse.self)
-                        apps = r.apps
-                        orphans = r.orphans
+                        // Fast path: show real .app sizes immediately, then fill leftovers.
+                        let quick = try await CLIExecutor.shared.run(["apps", "--quick", "--json"], as: AppsResponse.self)
+                        apps = quick.apps
+                        orphans = quick.orphans
+                        if !quiet {
+                            busy = false
+                            statusLine = "Sizing data…"
+                        }
+                        let full = try await CLIExecutor.shared.run(["apps", "--json"], as: AppsResponse.self)
+                        apps = full.apps
+                        orphans = full.orphans
                     }
                 case .updates:
                     if force || updates.isEmpty {

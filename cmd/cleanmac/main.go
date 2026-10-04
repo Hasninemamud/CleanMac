@@ -77,7 +77,7 @@ Usage:
   cleanmac junk --json
   cleanmac installer --json
   cleanmac purge --json
-  cleanmac apps --json
+  cleanmac apps [--quick] --json
   cleanmac software updates|startup --json
   cleanmac software startup --enable|--disable <path> --json
   cleanmac analyze overview|large|dupes|treemap --json
@@ -165,7 +165,16 @@ func runPurge(args []string) {
 }
 
 func runApps(args []string) {
-	_ = args
+	quick := false
+	for _, a := range args {
+		if a == "--quick" {
+			quick = true
+		}
+	}
+	if quick {
+		outJSON(apps.ScanQuick())
+		return
+	}
 	outJSON(apps.Scan())
 }
 

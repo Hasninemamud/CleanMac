@@ -182,7 +182,8 @@ func ScanOverview(onProgress func(int, string)) Overview {
 			size := j.fileSize
 			if j.isDir {
 				sem <- struct{}{}
-				size = fsutil.ShallowFolderSize(j.full)
+				// Mole basis: du -skP / physical (uncapped).
+				size = fsutil.PathSize(j.full)
 				<-sem
 			}
 			if onProgress != nil {
@@ -249,7 +250,8 @@ func CollectLarge(root string, minBytes int64, maxFiles int, onProgress func(int
 				}
 				stack = append(stack, full)
 			} else if info.Mode().IsRegular() {
-				if info.Size() < minBytes {
+				sz := fsutil.PathSize(full)
+				if sz < minBytes {
 					continue
 				}
 				s := safety.Classify(full, "review", safety.Opts{})
@@ -257,7 +259,7 @@ func CollectLarge(root string, minBytes int64, maxFiles int, onProgress func(int
 					continue
 				}
 				items = append(items, jsonout.Item{
-					Path: full, Name: ent.Name(), ByteSize: info.Size(), Safety: s,
+					Path: full, Name: ent.Name(), ByteSize: sz, Safety: s,
 					Category: "other", Explanation: "Large file",
 					ModifiedAt: float64(info.ModTime().UnixMilli()),
 				})

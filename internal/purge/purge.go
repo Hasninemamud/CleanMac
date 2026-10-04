@@ -55,7 +55,7 @@ func walkForArtifacts(root string, out *[]jsonout.Item, maxDepth, max, depth int
 		if artifactNames[ent.Name()] {
 			mtime := info.ModTime()
 			ageDays := time.Since(mtime).Hours() / 24
-			byteSize := fsutil.DirectorySize(full, 8_000)
+			byteSize := fsutil.PathSize(full)
 			if byteSize > 0 {
 				intended := "safe"
 				if ageDays < 7 {

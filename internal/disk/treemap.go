@@ -38,14 +38,13 @@ func Treemap(root string, maxChildren int) TreeNode {
 	}
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		node.ByteSize = fsutil.DirectorySize(root, 12_000)
+		node.ByteSize = fsutil.PathSize(root)
 		return node
 	}
 
 	type childJob struct {
 		full, name string
 		isDir      bool
-		fileSize   int64
 	}
 	var jobs []childJob
 	for _, ent := range entries {
@@ -68,11 +67,7 @@ func Treemap(root string, maxChildren int) TreeNode {
 		if !typ.IsRegular() {
 			continue
 		}
-		st, err := ent.Info()
-		if err != nil {
-			continue
-		}
-		jobs = append(jobs, childJob{full: full, name: name, fileSize: st.Size()})
+		jobs = append(jobs, childJob{full: full, name: name})
 	}
 
 	kids := make([]TreeNode, len(jobs))
@@ -83,14 +78,9 @@ func Treemap(root string, maxChildren int) TreeNode {
 		go func(i int, job childJob) {
 			defer wg.Done()
 			child := TreeNode{Path: job.full, Name: job.name, IsDirectory: job.isDir}
-			if job.isDir {
-				sem <- struct{}{}
-				// ponytail: 12k cap + parallel children — raise if treemap under-reports huge folders.
-				child.ByteSize = fsutil.DirectorySize(job.full, 12_000)
-				<-sem
-			} else {
-				child.ByteSize = job.fileSize
-			}
+			sem <- struct{}{}
+			child.ByteSize = fsutil.PathSize(job.full)
+			<-sem
 			kids[i] = child
 		}(i, job)
 	}
@@ -114,7 +104,7 @@ func Treemap(root string, maxChildren int) TreeNode {
 	if total > 0 {
 		node.ByteSize = total
 	} else {
-		node.ByteSize = fsutil.DirectorySize(root, 12_000)
+		node.ByteSize = fsutil.PathSize(root)
 	}
 	return node
 }

@@ -13,9 +13,6 @@ import (
 	"github.com/Hasninemamud/CleanMac/internal/whitelist"
 )
 
-// ponytail: per-dir entry cap — raise if sizes look truncated on huge caches.
-const sizeCap = 12_000
-
 type Rule struct {
 	Category     string
 	RelativePath string
@@ -83,7 +80,7 @@ func classifyCacheChild(name string) (category, explanation string) {
 func enumerateTopLevel(target string, rule Rule) []jsonout.Item {
 	entries, err := os.ReadDir(target)
 	if err != nil {
-		size := fsutil.DirectorySize(target, sizeCap)
+		size := fsutil.PathSize(target)
 		if size <= 0 {
 			return nil
 		}
@@ -152,7 +149,7 @@ func enumerateTopLevel(target string, rule Rule) []jsonout.Item {
 		go func(i int) {
 			defer wg.Done()
 			sem <- struct{}{}
-			cands[i].size = fsutil.DirectorySize(cands[i].full, sizeCap)
+			cands[i].size = fsutil.PathSize(cands[i].full)
 			<-sem
 		}(i)
 	}
