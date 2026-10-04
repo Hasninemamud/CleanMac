@@ -1,4 +1,4 @@
-# CleanMac 2.2.2 — manual parity checklist
+# CleanMac 2.2.3 — manual parity checklist
 
 - [ ] Clean → Junk / Installers / Purge scan + Select safe + Trash
 - [ ] Software → Caches / Leftovers / Orphans / Uninstall
