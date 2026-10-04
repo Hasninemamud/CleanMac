@@ -33,7 +33,10 @@ struct ContentView: View {
             get: { state.errorMessage != nil },
             set: { if !$0 { state.errorMessage = nil } }
         )) {
-            Button("OK", role: .cancel) { state.errorMessage = nil }
+            Button("OK", role: .cancel) {
+                state.errorMessage = nil
+                if state.statusLine == "Error" { state.statusLine = "Ready" }
+            }
         } message: {
             Text(state.errorMessage ?? "")
         }
@@ -91,14 +94,17 @@ struct ContentView: View {
             HStack(spacing: 2) {
                 ForEach(AppState.NavSection.allCases) { s in
                     SegmentPill(title: s.rawValue, selected: state.section == s) {
-                        state.section = s
-                        state.selected.removeAll()
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
+                            state.section = s
+                            state.selected.removeAll()
+                        }
                     }
                 }
             }
             .padding(3)
             .background(Theme.surface2)
             .clipShape(Capsule())
+            .animation(.spring(response: 0.35, dampingFraction: 0.86), value: state.section)
         }
         .frame(height: 50)
         .overlay(alignment: .bottom) {

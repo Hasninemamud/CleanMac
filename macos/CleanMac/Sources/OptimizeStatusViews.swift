@@ -3,6 +3,10 @@ import SwiftUI
 struct OptimizeView: View {
     @Environment(AppState.self) private var state
     @State private var complete = false
+    @State private var appeared = false
+    @State private var floatUp = false
+    @State private var pulse = false
+    @State private var showCheck = false
 
     private var runnableIDs: [String] {
         state.optimizeActions.filter { !$0.needsSudo }.map(\.id)
@@ -22,31 +26,62 @@ struct OptimizeView: View {
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [Theme.ink.opacity(0.10), Theme.bg.opacity(0)],
+                            colors: [
+                                (complete ? Theme.ok : Theme.ink).opacity(pulse ? 0.18 : 0.10),
+                                Theme.bg.opacity(0),
+                            ],
                             center: .center,
                             startRadius: 30,
                             endRadius: 150
                         )
                     )
                     .frame(width: 300, height: 300)
-                Image(systemName: "moon.fill")
+                    .scaleEffect(pulse ? 1.08 : 1)
+
+                Image(systemName: complete ? "moon.stars.fill" : "moon.fill")
                     .font(.system(size: 140, weight: .ultraLight))
                     .foregroundStyle(
                         LinearGradient(
-                            colors: [Theme.ink.opacity(0.75), Theme.muted.opacity(0.55)],
+                            colors: [
+                                Theme.ink.opacity(complete ? 0.9 : 0.75),
+                                Theme.muted.opacity(0.55),
+                            ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
                     .symbolRenderingMode(.hierarchical)
                     .shadow(color: Theme.ink.opacity(0.12), radius: 24, y: 10)
+                    .offset(y: floatUp ? -8 : 6)
+                    .rotationEffect(.degrees(state.busy ? 8 : 0))
+                    .scaleEffect(appeared ? 1 : 0.88)
+                    .opacity(appeared ? 1 : 0)
+
+                if showCheck {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 36, weight: .semibold))
+                        .foregroundColor(Theme.ok)
+                        .offset(x: 70, y: 70)
+                        .transition(.scale.combined(with: .opacity))
+                }
             }
             .padding(.bottom, 28)
+            .animation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true), value: floatUp)
+            .animation(
+                state.busy
+                    ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true)
+                    : .easeOut(duration: 0.35),
+                value: pulse
+            )
 
             Text(headline)
                 .font(.system(size: 32, weight: .bold))
                 .foregroundColor(Theme.ink)
                 .multilineTextAlignment(.center)
+                .contentTransition(.opacity)
+                .animation(.spring(response: 0.4, dampingFraction: 0.85), value: headline)
+                .opacity(appeared ? 1 : 0)
+                .offset(y: appeared ? 0 : 12)
 
             Text(state.busy ? "Working…" : subtitle)
                 .font(.system(size: 13, weight: .medium))
@@ -54,6 +89,8 @@ struct OptimizeView: View {
                 .multilineTextAlignment(.center)
                 .padding(.top, 10)
                 .padding(.horizontal, 40)
+                .animation(.easeOut(duration: 0.25), value: state.busy)
+                .opacity(appeared ? 1 : 0)
 
             Spacer(minLength: 28)
 
@@ -66,20 +103,33 @@ struct OptimizeView: View {
                     .frame(minWidth: 220)
                     .padding(.horizontal, 36)
                     .padding(.vertical, 14)
-                    .background(Theme.surface2)
+                    .background(complete ? Theme.ok.opacity(0.15) : Theme.surface2)
                     .overlay(
-                        Capsule().stroke(Theme.line, lineWidth: 1)
+                        Capsule().stroke(complete ? Theme.ok.opacity(0.35) : Theme.line, lineWidth: 1)
                     )
                     .clipShape(Capsule())
+                    .animation(.easeOut(duration: 0.25), value: complete)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableCapsuleStyle())
             .disabled(state.busy)
+            .opacity(appeared ? 1 : 0)
+            .offset(y: appeared ? 0 : 14)
             .padding(.bottom, 40)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task {
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.84)) { appeared = true }
+            floatUp = true
             if state.optimizeActions.isEmpty {
                 await state.scan()
+            }
+        }
+        .onChange(of: state.busy) { _, busy in
+            pulse = busy
+        }
+        .onChange(of: complete) { _, done in
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                showCheck = done
             }
         }
     }
@@ -98,7 +148,7 @@ struct OptimizeView: View {
 
     private func primaryAction() async {
         if complete {
-            complete = false
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { complete = false }
             await state.scan()
             return
         }
@@ -108,7 +158,7 @@ struct OptimizeView: View {
         }
         await state.runOptimize(ids: runnableIDs, dryRun: false)
         if state.errorMessage == nil {
-            complete = true
+            withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) { complete = true }
         }
     }
 }

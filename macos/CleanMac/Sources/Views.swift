@@ -3,19 +3,30 @@ import SwiftUI
 struct CleanView: View {
     @Environment(AppState.self) private var state
     @State private var expanded = Set<String>()
+    @State private var heroReady = false
 
     var body: some View {
         @Bindable var state = state
-        Group {
+        ZStack {
             switch state.cleanPhase {
             case .hero:
                 hero
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.96)).combined(with: .offset(y: 12)),
+                        removal: .opacity.combined(with: .offset(y: -16))
+                    ))
             case .review:
                 review(selected: $state.selected)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .move(edge: .bottom)),
+                        removal: .opacity.combined(with: .offset(y: 20))
+                    ))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(.spring(response: 0.45, dampingFraction: 0.86), value: state.cleanPhase)
         .task {
+            withAnimation(.easeOut(duration: 0.55)) { heroReady = true }
             if state.cleanItems.isEmpty, !state.busy {
                 await state.scan()
             }
@@ -31,13 +42,23 @@ struct CleanView: View {
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [Theme.accent.opacity(0.22), Theme.bg.opacity(0)],
+                            colors: [
+                                Theme.accent.opacity(state.busy ? 0.34 : 0.22),
+                                Theme.bg.opacity(0),
+                            ],
                             center: .center,
                             startRadius: 20,
                             endRadius: 140
                         )
                     )
                     .frame(width: 280, height: 280)
+                    .scaleEffect(state.busy ? 1.06 : 1)
+                    .animation(
+                        state.busy
+                            ? .easeInOut(duration: 1.1).repeatForever(autoreverses: true)
+                            : .spring(response: 0.4, dampingFraction: 0.85),
+                        value: state.busy
+                    )
                 Image(systemName: "globe.americas.fill")
                     .font(.system(size: 120, weight: .ultraLight))
                     .foregroundStyle(
@@ -48,6 +69,15 @@ struct CleanView: View {
                         )
                     )
                     .symbolRenderingMode(.hierarchical)
+                    .rotationEffect(.degrees(state.busy ? 360 : 0))
+                    .animation(
+                        state.busy
+                            ? .linear(duration: 10).repeatForever(autoreverses: false)
+                            : .easeOut(duration: 0.5),
+                        value: state.busy
+                    )
+                    .offset(y: heroReady ? 0 : 18)
+                    .opacity(heroReady ? 1 : 0)
             }
             .padding(.bottom, 28)
 
@@ -55,9 +85,13 @@ struct CleanView: View {
                 .font(.system(size: 34, weight: .bold, design: .rounded))
                 .foregroundColor(Theme.ink)
                 .contentTransition(.numericText())
+                .animation(.spring(response: 0.4, dampingFraction: 0.85), value: state.cleanTotalBytes)
+                .opacity(heroReady ? 1 : 0)
+                .offset(y: heroReady ? 0 : 10)
 
             HStack(spacing: 6) {
                 if state.busy {
+                    ProgressView().controlSize(.mini).tint(Theme.accent)
                     Text("Scanning…")
                         .foregroundColor(Theme.muted)
                 } else if state.cleanItems.isEmpty {
@@ -79,6 +113,8 @@ struct CleanView: View {
             }
             .font(.system(size: 13, weight: .medium))
             .padding(.top, 8)
+            .animation(.easeOut(duration: 0.25), value: state.busy)
+            .animation(.easeOut(duration: 0.25), value: state.cleanItems.count)
 
             Spacer(minLength: 24)
 
@@ -87,7 +123,9 @@ struct CleanView: View {
                     Task { await state.scan() }
                 } else {
                     if state.selected.isEmpty { state.selectRecommendedClean() }
-                    state.cleanPhase = .review
+                    withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
+                        state.cleanPhase = .review
+                    }
                 }
             } label: {
                 Text(state.cleanItems.isEmpty ? "Scan Mac" : "Review results")
@@ -99,8 +137,10 @@ struct CleanView: View {
                     .clipShape(Capsule())
                     .shadow(color: Theme.ink.opacity(0.18), radius: 16, y: 6)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableCapsuleStyle())
             .disabled(state.busy)
+            .opacity(heroReady ? 1 : 0)
+            .offset(y: heroReady ? 0 : 16)
             .padding(.bottom, 36)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -119,6 +159,8 @@ struct CleanView: View {
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(Theme.muted)
                         .lineLimit(2)
+                        .contentTransition(.opacity)
+                        .animation(.easeOut(duration: 0.2), value: state.selected.count)
                 }
                 Spacer()
                 HStack(spacing: 8) {
@@ -132,13 +174,22 @@ struct CleanView: View {
                             .background(Theme.surface)
                             .clipShape(Circle())
                             .overlay(Circle().stroke(Theme.line, lineWidth: 1))
+                            .rotationEffect(.degrees(state.busy ? 360 : 0))
+                            .animation(
+                                state.busy
+                                    ? .linear(duration: 0.9).repeatForever(autoreverses: false)
+                                    : .default,
+                                value: state.busy
+                            )
                     }
                     .buttonStyle(.plain)
                     .disabled(state.busy)
                     .help("Scan again")
 
                     Button {
-                        state.cleanPhase = .hero
+                        withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
+                            state.cleanPhase = .hero
+                        }
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 12, weight: .bold))
@@ -156,16 +207,26 @@ struct CleanView: View {
 
             ScrollView {
                 LazyVStack(spacing: 10) {
-                    ForEach(state.cleanCategories) { cat in
+                    ForEach(Array(state.cleanCategories.enumerated()), id: \.element.id) { idx, cat in
                         CleanCategoryRow(
                             category: cat,
                             selected: selected,
                             expanded: Binding(
                                 get: { expanded.contains(cat.name) },
                                 set: { on in
-                                    if on { expanded.insert(cat.name) } else { expanded.remove(cat.name) }
+                                    withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) {
+                                        if on { expanded.insert(cat.name) } else { expanded.remove(cat.name) }
+                                    }
                                 }
                             )
+                        )
+                        .transition(.asymmetric(
+                            insertion: .opacity.combined(with: .offset(y: 10)),
+                            removal: .opacity
+                        ))
+                        .animation(
+                            .spring(response: 0.4, dampingFraction: 0.88).delay(Double(idx) * 0.04),
+                            value: state.cleanCategories.count
                         )
                     }
                 }
@@ -173,6 +234,7 @@ struct CleanView: View {
             }
 
             reviewFooter
+                .transition(.move(edge: .bottom).combined(with: .opacity))
         }
     }
 
@@ -239,12 +301,22 @@ struct CleanView: View {
                     .padding(.vertical, 12)
                     .background(state.selected.isEmpty ? Theme.muted : Theme.ink)
                     .clipShape(Capsule())
+                    .animation(.easeOut(duration: 0.2), value: state.selectedBytes)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PressableCapsuleStyle())
             .disabled(state.selected.isEmpty || state.busy)
         }
         .padding(.top, 12)
         .padding(.bottom, 4)
+    }
+}
+
+struct PressableCapsuleStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .opacity(configuration.isPressed ? 0.9 : 1)
+            .animation(.spring(response: 0.28, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
 
@@ -329,6 +401,7 @@ struct CleanCategoryRow: View {
                     ItemRow(item: item, selected: $selected)
                     Divider().background(Theme.line)
                 }
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .background(Theme.surface)
@@ -337,6 +410,8 @@ struct CleanCategoryRow: View {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .stroke(Theme.line, lineWidth: 1)
         )
+        .animation(.spring(response: 0.35, dampingFraction: 0.88), value: expanded)
+        .animation(.easeOut(duration: 0.2), value: selectedCount)
     }
 
     private var checkboxSymbol: String {

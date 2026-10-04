@@ -102,17 +102,28 @@ func progress() func(int, string) {
 func runJunk(args []string) {
 	_ = args
 	items := junk.Scan(progress())
+	if items == nil {
+		items = []jsonout.Item{}
+	}
 	outJSON(map[string]any{"items": items})
 }
 
 func runInstallers(args []string) {
 	_ = args
-	outJSON(map[string]any{"items": installers.Scan()})
+	items := installers.Scan()
+	if items == nil {
+		items = []jsonout.Item{}
+	}
+	outJSON(map[string]any{"items": items})
 }
 
 func runPurge(args []string) {
 	_ = args
-	outJSON(map[string]any{"items": purge.Scan(progress())})
+	items := purge.Scan(progress())
+	if items == nil {
+		items = []jsonout.Item{}
+	}
+	outJSON(map[string]any{"items": items})
 }
 
 func runApps(args []string) {

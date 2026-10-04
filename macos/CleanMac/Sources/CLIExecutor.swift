@@ -47,6 +47,13 @@ struct CleanCategory: Identifiable {
 
 struct ItemsResponse: Codable {
     let items: [ScanItem]
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        items = try c.decodeIfPresent([ScanItem].self, forKey: .items) ?? []
+    }
+
+    private enum CodingKeys: String, CodingKey { case items }
 }
 
 struct AppsResponse: Codable {
@@ -260,11 +267,35 @@ final class CLIExecutor: @unchecked Sendable {
             throw CLIError.binaryMissing(bin)
         }
         let data = try await runRaw([bin] + args)
+        let payload = Self.resultJSON(from: data)
         do {
-            return try JSONDecoder().decode(T.self, from: data)
+            return try JSONDecoder().decode(T.self, from: payload)
         } catch {
-            throw CLIError.decode(error.localizedDescription)
+            let preview = String(data: payload.prefix(180), encoding: .utf8) ?? ""
+            throw CLIError.decode("\(error.localizedDescription)\(preview.isEmpty ? "" : " · \(preview)")")
         }
+    }
+
+    /// CLI may emit NDJSON progress lines before the final result object.
+    private static func resultJSON(from data: Data) -> Data {
+        if data.isEmpty { return Data("{}".utf8) }
+        if (try? JSONSerialization.jsonObject(with: data)) != nil {
+            return data
+        }
+        let text = String(data: data, encoding: .utf8) ?? ""
+        let lines = text.split(whereSeparator: \.isNewline).map(String.init)
+        for line in lines.reversed() {
+            let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmed.hasPrefix("{"), let lineData = trimmed.data(using: .utf8) else { continue }
+            if let obj = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
+               (obj["type"] as? String) == "progress" {
+                continue
+            }
+            if (try? JSONSerialization.jsonObject(with: lineData)) != nil {
+                return lineData
+            }
+        }
+        return data
     }
 
     private func runRaw(_ argv: [String]) async throws -> Data {
