@@ -2,90 +2,113 @@ import SwiftUI
 
 struct OptimizeView: View {
     @Environment(AppState.self) private var state
-    @State private var picked = Set<String>()
+    @State private var complete = false
+
+    private var runnableIDs: [String] {
+        state.optimizeActions.filter { !$0.needsSudo }.map(\.id)
+    }
+
+    private var subtitle: String {
+        let titles = state.optimizeActions.map(\.title)
+        if titles.isEmpty { return "Launch speed · System databases · System maintenance" }
+        return titles.prefix(4).joined(separator: " · ")
+    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Maintenance actions run only after you confirm. Admin actions stay skipped in-app.")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(Theme.muted)
-                .fixedSize(horizontal: false, vertical: true)
+        VStack(spacing: 0) {
+            Spacer(minLength: 20)
 
-            if state.optimizeActions.isEmpty {
-                EmptyState(
-                    title: "Optimize",
-                    systemImage: "wrench.and.screwdriver",
-                    message: "Preview to list safe maintenance steps."
-                )
-            } else {
-                ScrollView {
-                    LazyVStack(spacing: 0) {
-                        ForEach(state.optimizeActions) { a in
-                            HStack(alignment: .top, spacing: 10) {
-                                CheckMark(
-                                    isOn: Binding(
-                                        get: { picked.contains(a.id) },
-                                        set: { on in
-                                            if on { picked.insert(a.id) } else { picked.remove(a.id) }
-                                        }
-                                    ),
-                                    disabled: a.needsSudo
-                                )
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(a.title)
-                                        .font(.system(size: 13, weight: .semibold))
-                                        .foregroundColor(Theme.ink)
-                                    Text(a.explanation)
-                                        .font(.system(size: 11, weight: .medium))
-                                        .foregroundColor(Theme.muted)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                    if a.needsSudo {
-                                        Text("Needs admin (Terminal)")
-                                            .font(.system(size: 10, weight: .semibold))
-                                            .foregroundColor(Theme.accent)
-                                    }
-                                    Text(a.status + (a.detail.map { " · \($0)" } ?? ""))
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundColor(Theme.muted)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                            }
-                            .padding(12)
-                            Divider().background(Theme.line)
-                        }
-                    }
-                    .background(Theme.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .stroke(Theme.line, lineWidth: 1)
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Theme.ink.opacity(0.10), Theme.bg.opacity(0)],
+                            center: .center,
+                            startRadius: 30,
+                            endRadius: 150
+                        )
                     )
-                }
+                    .frame(width: 300, height: 300)
+                Image(systemName: "moon.fill")
+                    .font(.system(size: 140, weight: .ultraLight))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Theme.ink.opacity(0.75), Theme.muted.opacity(0.55)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .symbolRenderingMode(.hierarchical)
+                    .shadow(color: Theme.ink.opacity(0.12), radius: 24, y: 10)
             }
+            .padding(.bottom, 28)
 
-            HStack(spacing: 10) {
-                Button("Preview") {
-                    Task { await state.runOptimize(ids: [], dryRun: true) }
-                }
-                .buttonStyle(SoftButtonStyle())
-                Button("Run selected") {
-                    Task { await state.runOptimize(ids: Array(picked), dryRun: false) }
-                }
-                .buttonStyle(PrimaryButtonStyle(disabled: picked.isEmpty || state.busy))
-                .disabled(picked.isEmpty || state.busy)
-                Spacer()
+            Text(headline)
+                .font(.system(size: 32, weight: .bold))
+                .foregroundColor(Theme.ink)
+                .multilineTextAlignment(.center)
+
+            Text(state.busy ? "Working…" : subtitle)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(Theme.muted)
+                .multilineTextAlignment(.center)
+                .padding(.top, 10)
+                .padding(.horizontal, 40)
+
+            Spacer(minLength: 28)
+
+            Button {
+                Task { await primaryAction() }
+            } label: {
+                Text(buttonTitle)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(Theme.ink.opacity(state.busy ? 0.4 : 0.85))
+                    .frame(minWidth: 220)
+                    .padding(.horizontal, 36)
+                    .padding(.vertical, 14)
+                    .background(Theme.surface2)
+                    .overlay(
+                        Capsule().stroke(Theme.line, lineWidth: 1)
+                    )
+                    .clipShape(Capsule())
             }
+            .buttonStyle(.plain)
+            .disabled(state.busy)
+            .padding(.bottom, 40)
         }
-        .onAppear {
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task {
             if state.optimizeActions.isEmpty {
-                Task { await state.scan() }
+                await state.scan()
             }
-            picked = Set(state.optimizeActions.filter { !$0.needsSudo }.map(\.id))
         }
-        .onChange(of: state.optimizeActions.map(\.id)) { _, _ in
-            if picked.isEmpty {
-                picked = Set(state.optimizeActions.filter { !$0.needsSudo }.map(\.id))
-            }
+    }
+
+    private var headline: String {
+        if state.busy { return "Running maintenance…" }
+        if complete { return "Maintenance complete" }
+        return "Ready to maintain"
+    }
+
+    private var buttonTitle: String {
+        if complete { return "Rest, CleanMac" }
+        if runnableIDs.isEmpty { return "Refresh catalog" }
+        return "Run maintenance"
+    }
+
+    private func primaryAction() async {
+        if complete {
+            complete = false
+            await state.scan()
+            return
+        }
+        if runnableIDs.isEmpty {
+            await state.scan()
+            return
+        }
+        await state.runOptimize(ids: runnableIDs, dryRun: false)
+        if state.errorMessage == nil {
+            complete = true
         }
     }
 }
@@ -103,63 +126,81 @@ private enum Dash {
 
 struct StatusView: View {
     @Environment(AppState.self) private var state
-    @State private var tab: StatusTab = .overview
     @State private var historyCPU: [Double] = []
     @State private var historyGPU: [Double] = []
     @State private var historyMem: [Double] = []
     @State private var historyDisk: [Double] = []
     @State private var historyNet: [Double] = []
     @State private var historyBatt: [Double] = []
+    @State private var selectedPID: Int?
     @State private var live = true
-
-    private let triple = [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
-
-    enum StatusTab: String, CaseIterable, Identifiable {
-        case overview = "Overview"
-        case cpu = "CPU"
-        case memory = "Memory"
-        case disk = "Disk"
-        case network = "Network"
-        case gpu = "GPU"
-        case battery = "Battery"
-        var id: String { rawValue }
-        var icon: String {
-            switch self {
-            case .overview: return "square.grid.2x2"
-            case .cpu: return "cpu"
-            case .memory: return "memorychip"
-            case .disk: return "internaldrive"
-            case .network: return "network"
-            case .gpu: return "square.3.layers.3d"
-            case .battery: return "battery.100"
-            }
-        }
-    }
 
     var body: some View {
         Group {
             if let m = state.metrics {
-                VStack(spacing: 12) {
-                    tabBar
-                    ScrollView(showsIndicators: false) {
-                        VStack(alignment: .leading, spacing: 12) {
-                            switch tab {
-                            case .overview: overviewGrid(m)
-                            case .cpu: focusPanel(title: "CPU", value: pct(m.cpuPercent ?? 0), color: Dash.blue, history: historyCPU, detail: "\(m.numCPU) cores · load \(loadText(m))")
-                            case .memory: focusPanel(title: "Memory", value: ByteFormat.string(Int64(m.memUsed)), color: Dash.purple, history: historyMem, detail: "\(Int((memRatio(m)*100).rounded()))% · pressure \(Int(((m.memPressure ?? 0)*100).rounded()))%")
-                            case .disk: focusPanel(title: "Disk", value: ByteFormat.disk(m.diskUsed), color: Dash.amber, history: historyDisk, detail: "\(ByteFormat.disk(m.diskFree)) free of \(ByteFormat.disk(m.diskTotal))")
-                            case .network: focusPanel(title: "Network", value: rate((m.netDownKBs ?? 0) + (m.netUpKBs ?? 0)), color: Dash.teal, history: historyNet, detail: "↓ \(rate(m.netDownKBs ?? 0))  ↑ \(rate(m.netUpKBs ?? 0))")
-                            case .gpu: focusPanel(title: "GPU", value: pct(m.gpuPercent ?? 0), color: Dash.pink, history: historyGPU, detail: "Estimated from display services")
-                            case .battery: focusPanel(title: "Battery", value: battTitle(m), color: Dash.green, history: historyBatt, detail: m.batteryState ?? "—")
-                            }
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 12) {
+                        HStack(alignment: .top, spacing: 12) {
+                            healthCard(m)
+                                .frame(maxWidth: .infinity)
+                            statusMiniCard(
+                                title: "CPU", tint: Dash.green, badge: estTemp(m.cpuPercent),
+                                primary: pct(m.cpuPercent ?? 0),
+                                footer: "idle · Load \(loadText(m)) / \(m.numCPU) cores",
+                                history: historyCPU, chart: .bars
+                            )
+                            statusMiniCard(
+                                title: "GPU", tint: Dash.amber, badge: estTemp(m.gpuPercent),
+                                primary: pct(m.gpuPercent ?? 0),
+                                footer: "idle · \(m.numCPU) GPU cores",
+                                history: historyGPU, chart: .line
+                            )
+                            statusMiniCard(
+                                title: "MEMORY", tint: Theme.accent,
+                                badge: "Pressure \(Int(((m.memPressure ?? memRatio(m)) * 100).rounded()))%",
+                                primary: pct(memRatio(m) * 100),
+                                footer: "\(ByteFormat.string(Int64(m.memUsed))) · \(ByteFormat.string(Int64(m.swapUsed ?? 0))) swap",
+                                history: historyMem, chart: .bar
+                            )
                         }
-                        .padding(.bottom, 8)
+                        .frame(minHeight: 168)
+
+                        HStack(alignment: .top, spacing: 12) {
+                            batteryCard(m)
+                                .frame(maxWidth: .infinity)
+                            statusMiniCard(
+                                title: "DISK", tint: Dash.blue,
+                                badge: ByteFormat.disk(m.diskTotal),
+                                primary: ByteFormat.disk(m.diskFree),
+                                footer: "\(ByteFormat.disk(m.diskUsed)) used · \(Int((diskRatio(m) * 100).rounded()))%",
+                                history: historyDisk, chart: .bar
+                            )
+                            statusMiniCard(
+                                title: "NETWORK", tint: Dash.teal, badge: "Wi-Fi",
+                                primary: rate((m.netDownKBs ?? 0) + (m.netUpKBs ?? 0)),
+                                footer: "↑ \(rate(m.netUpKBs ?? 0)) · Wi-Fi",
+                                history: historyNet, chart: .line
+                            )
+                            statusMiniCard(
+                                title: "THERMAL", tint: Dash.green,
+                                badge: m.thermal ?? "Normal",
+                                primary: "CPU \(estTemp(m.cpuPercent))",
+                                secondary: "GPU \(estTemp(m.gpuPercent))",
+                                footer: "\(shortChip(m)) · peak \(estTemp((m.cpuPercent ?? 0) * 1.4))",
+                                history: [min((m.cpuPercent ?? 0) / 100, 1)], chart: .bar
+                            )
+                        }
+                        .frame(minHeight: 168)
+
+                        processTable(m)
                     }
+                    .padding(.bottom, 8)
                 }
             } else {
                 EmptyState(title: "Status", systemImage: "gauge.with.dots.needle.33percent", message: "Refresh for a live snapshot.")
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear { Task { await refresh() } }
         .task(id: live) {
             guard live else { return }
@@ -171,310 +212,282 @@ struct StatusView: View {
         .onChange(of: state.metrics?.timestamp) { _, _ in pushHistory() }
     }
 
-    private var tabBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 4) {
-                ForEach(StatusTab.allCases) { t in
-                    Button {
-                        withAnimation(.easeOut(duration: 0.15)) { tab = t }
-                    } label: {
-                        HStack(spacing: 5) {
-                            Image(systemName: t.icon)
-                                .font(.system(size: 10, weight: .semibold))
-                            Text(t.rawValue)
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                        .foregroundColor(tab == t ? Theme.ink : Theme.muted)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
-                        .background(tab == t ? Theme.surface : Color.clear)
-                        .clipShape(Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-                Spacer(minLength: 8)
-                Toggle(isOn: $live) {
-                    Text(live ? "Live" : "Paused")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(Theme.muted)
-                }
-                .toggleStyle(.switch)
-                .controlSize(.mini)
-                .tint(Theme.accent)
-            }
-            .padding(3)
-            .background(Theme.surface2)
-            .clipShape(Capsule())
-        }
-    }
-
-    private func overviewGrid(_ m: StatusSnapshot) -> some View {
-        VStack(spacing: 12) {
-            LazyVGrid(columns: triple, spacing: 12) {
-                metricCard(
-                    title: "CPU", icon: "cpu", tint: Dash.blue,
-                    primary: pct(m.cpuPercent ?? 0),
-                    rows: [("User", approxUser(m)), ("System", approxSystem(m))],
-                    history: historyCPU
-                )
-                metricCard(
-                    title: "Memory", icon: "memorychip", tint: Dash.purple,
-                    primary: ByteFormat.string(Int64(m.memUsed)),
-                    badge: pressureBadge(m),
-                    rows: [("Used", "\(Int((memRatio(m)*100).rounded()))%"), ("Swap", ByteFormat.string(Int64(m.swapUsed ?? 0)))],
-                    history: historyMem
-                )
-                metricCard(
-                    title: "GPU", icon: "square.3.layers.3d", tint: Dash.pink,
-                    primary: pct(m.gpuPercent ?? 0),
-                    rows: [("Render", pct(m.gpuPercent ?? 0)), ("Est.", "services")],
-                    history: historyGPU
-                )
-                metricCard(
-                    title: "Disk", icon: "internaldrive", tint: Dash.amber,
-                    primary: ByteFormat.disk(m.diskUsed),
-                    rows: [("Free", ByteFormat.disk(m.diskFree)), ("Total", ByteFormat.disk(m.diskTotal))],
-                    history: historyDisk
-                )
-                metricCard(
-                    title: "Network", icon: "network", tint: Dash.teal,
-                    primary: rate((m.netDownKBs ?? 0) + (m.netUpKBs ?? 0)),
-                    rows: [("Down", rate(m.netDownKBs ?? 0)), ("Up", rate(m.netUpKBs ?? 0))],
-                    history: historyNet
-                )
-                metricCard(
-                    title: "Battery", icon: "battery.100", tint: Dash.green,
-                    primary: battTitle(m),
-                    rows: [("State", m.batteryState ?? "—"), ("Health", m.healthLabel ?? "—")],
-                    history: historyBatt
-                )
-            }
-
-            LazyVGrid(columns: triple, spacing: 12) {
-                donutCard(
-                    title: "Memory by Type",
-                    center: "\(Int((memRatio(m)*100).rounded()))%\nin use",
-                    slices: memTypeSlices(m)
-                )
-                donutCard(
-                    title: "Memory by App",
-                    center: ByteFormat.string(Int64((m.processes ?? []).prefix(5).reduce(0) { $0 + $1.memMB } * 1024 * 1024)),
-                    slices: appMemSlices(m)
-                )
-                donutCard(
-                    title: "CPU by App",
-                    center: String(format: "%.0f%%\ntop", (m.processes ?? []).prefix(5).reduce(0) { $0 + $1.cpu }),
-                    slices: appCPUSlices(m)
-                )
-            }
-
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Top processes")
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundColor(Theme.muted)
-                    .padding(.bottom, 8)
-                ForEach(Array((m.processes ?? []).prefix(8))) { p in
-                    HStack {
-                        Text(p.name).font(.system(size: 12, weight: .semibold)).foregroundColor(Theme.ink).lineLimit(1)
-                        Spacer()
-                        Text(String(format: "%.0f%%", p.cpu)).foregroundColor(Theme.muted).monospacedDigit()
-                        Text(String(format: "%.0f MB", p.memMB)).foregroundColor(Theme.muted).monospacedDigit().frame(width: 64, alignment: .trailing)
-                        Button("Quit") { state.quitProcess(pid: p.pid) }
-                            .buttonStyle(SoftButtonStyle())
-                    }
-                    .padding(.vertical, 4)
-                    Divider().background(Theme.line)
-                }
-            }
-            .padding(12)
-            .background(Theme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        }
-    }
-
-    private func focusPanel(title: String, value: String, color: Color, history: [Double], detail: String) -> some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Text(title)
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(Theme.muted)
-                Spacer()
-                Text(value)
-                    .font(.system(size: 28, weight: .bold, design: .rounded))
-                    .foregroundColor(Theme.ink)
-            }
-            Text(detail)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundColor(Theme.muted)
-            BarChart(values: history.isEmpty ? [0.2] : history, color: color)
-                .frame(height: 120)
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Theme.line, lineWidth: 1))
-    }
-
     // MARK: Cards
 
-    private func metricCard(
-        title: String,
-        icon: String,
-        tint: Color,
-        primary: String,
-        badge: String? = nil,
-        rows: [(String, String)],
-        history: [Double]
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                HStack(spacing: 7) {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(tint.opacity(0.2))
-                        .frame(width: 22, height: 22)
-                        .overlay(
-                            Image(systemName: icon)
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundColor(tint)
-                        )
-                    Text(title)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(Theme.ink)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(Theme.muted.opacity(0.7))
-            }
-
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(primary)
-                    .font(.system(size: 22, weight: .bold, design: .rounded))
-                    .foregroundColor(Theme.ink)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.7)
-                if let badge {
-                    Text(badge)
-                        .font(.system(size: 10, weight: .bold))
+    private func healthCard(_ m: StatusSnapshot) -> some View {
+        let score = m.healthScore ?? 100
+        let label = m.healthLabel ?? "Excellent"
+        return HStack(alignment: .center, spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Label("HEALTH", systemImage: "sun.max.fill")
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundColor(Dash.green)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        .background(Dash.green.opacity(0.15))
-                        .clipShape(Capsule())
-                }
-            }
-
-            VStack(alignment: .leading, spacing: 3) {
-                ForEach(rows, id: \.0) { row in
+                    Spacer()
                     HStack(spacing: 6) {
-                        Circle().fill(tint).frame(width: 5, height: 5)
-                        Text("\(row.0): \(row.1)")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(Theme.muted)
-                            .lineLimit(1)
-                    }
-                }
-            }
-
-            BarChart(values: history.isEmpty ? [0.15, 0.2, 0.18] : history, color: tint)
-                .frame(height: 36)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 150, alignment: .topLeading)
-        .background(Theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Theme.line, lineWidth: 1))
-        .contentShape(Rectangle())
-        .onTapGesture {
-            withAnimation {
-                switch title {
-                case "CPU": tab = .cpu
-                case "Memory": tab = .memory
-                case "GPU": tab = .gpu
-                case "Disk": tab = .disk
-                case "Network": tab = .network
-                case "Battery": tab = .battery
-                default: break
-                }
-            }
-        }
-    }
-
-    private func donutCard(title: String, center: String, slices: [(String, Double, Color)]) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(Theme.ink)
-            HStack(spacing: 12) {
-                DonutChart(slices: slices.map { ($0.1, $0.2) }, center: center)
-                    .frame(width: 88, height: 88)
-                VStack(alignment: .leading, spacing: 6) {
-                    ForEach(slices.prefix(4), id: \.0) { s in
-                        HStack(spacing: 6) {
-                            Circle().fill(s.2).frame(width: 7, height: 7)
-                            Text(s.0)
-                                .font(.system(size: 10, weight: .medium))
+                        ForEach(chipBadges(m), id: \.self) { b in
+                            Text(b)
+                                .font(.system(size: 10, weight: .semibold))
                                 .foregroundColor(Theme.muted)
-                                .lineLimit(1)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .background(Theme.surface2)
+                                .clipShape(Capsule())
                         }
                     }
                 }
-                Spacer(minLength: 0)
+                Text("\(score) \(label)")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(Theme.ink)
+                Text(score >= 80 ? "All checks passed" : "Needs attention")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(Theme.muted)
+                Text(uptimeLine(m))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(Theme.muted)
+            }
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Dash.amber.opacity(0.55), Theme.surface.opacity(0)],
+                            center: .center, startRadius: 4, endRadius: 54
+                        )
+                    )
+                    .frame(width: 100, height: 100)
+                Image(systemName: "sun.max.fill")
+                    .font(.system(size: 44, weight: .medium))
+                    .foregroundStyle(Dash.amber)
             }
         }
+        .padding(16)
+        .background(cardBG)
+    }
+
+    private func batteryCard(_ m: StatusSnapshot) -> some View {
+        let pctVal = Double(m.batteryPct ?? 0) / 100
+        let desktop = m.batteryState == "Desktop" || ((m.batteryPct ?? 0) == 0 && (m.batteryState == "Unknown" || m.batteryState == nil))
+        return HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Label("BATTERY", systemImage: "battery.100.bolt")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(Dash.green)
+                    Spacer()
+                    Text(m.healthLabel.map { "\($0)" } ?? "—")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(Theme.muted)
+                }
+                if desktop {
+                    Text("AC Power")
+                        .font(.system(size: 26, weight: .bold))
+                        .foregroundColor(Theme.ink)
+                    Text("Desktop · no battery")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Theme.muted)
+                } else {
+                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                        Text("\(m.batteryPct ?? 0)% \(m.batteryState ?? "")")
+                            .font(.system(size: 24, weight: .bold))
+                            .foregroundColor(Theme.ink)
+                        if let w = m.batteryWatts, w > 0 {
+                            Text(String(format: "%.0fW", w))
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(Dash.amber)
+                        }
+                    }
+                    Text(battDetail(m))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Theme.muted)
+                }
+                if let top = (m.processes ?? []).first {
+                    Text("Top drain \(top.name) · \(String(format: "%.1f", top.cpu))")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Theme.muted)
+                }
+            }
+            ZStack {
+                Circle().stroke(Theme.surface2, lineWidth: 8).frame(width: 72, height: 72)
+                Circle()
+                    .trim(from: 0, to: desktop ? 1 : pctVal)
+                    .stroke(Dash.green, style: StrokeStyle(lineWidth: 8, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .frame(width: 72, height: 72)
+                Image(systemName: "laptopcomputer")
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundColor(Theme.ink)
+            }
+        }
+        .padding(16)
+        .background(cardBG)
+    }
+
+    private enum MiniChart { case bars, line, bar }
+
+    private func statusMiniCard(
+        title: String,
+        tint: Color,
+        badge: String,
+        primary: String,
+        secondary: String? = nil,
+        footer: String,
+        history: [Double],
+        chart: MiniChart
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(title)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(tint)
+                Spacer()
+                Text(badge)
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(Theme.muted)
+            }
+            if let secondary {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(primary)
+                        .font(.system(size: 20, weight: .bold, design: .rounded))
+                        .foregroundColor(Theme.ink)
+                    Text(secondary)
+                        .font(.system(size: 16, weight: .bold, design: .rounded))
+                        .foregroundColor(tint)
+                }
+            } else {
+                Text(primary)
+                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .foregroundColor(Theme.ink)
+            }
+            Group {
+                switch chart {
+                case .bars:
+                    BarChart(values: history.isEmpty ? [0.1, 0.2, 0.15, 0.3] : history, color: tint)
+                case .line:
+                    Sparkline(values: history.isEmpty ? [0.2, 0.25, 0.22, 0.3, 0.28] : history, color: tint)
+                case .bar:
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Capsule().fill(Theme.surface2)
+                            Capsule()
+                                .fill(LinearGradient(colors: [tint.opacity(0.7), tint], startPoint: .leading, endPoint: .trailing))
+                                .frame(width: max(6, geo.size.width * CGFloat(history.last ?? 0.3)))
+                        }
+                    }
+                    .frame(height: 8)
+                }
+            }
+            .frame(height: chart == .bar ? 8 : 36)
+            Text(footer)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(Theme.muted)
+                .lineLimit(2)
+        }
         .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 140, alignment: .topLeading)
-        .background(Theme.surface)
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(Theme.line, lineWidth: 1))
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(cardBG)
     }
 
-    // MARK: Data helpers
+    private func processTable(_ m: StatusSnapshot) -> some View {
+        let procs = Array((m.processes ?? []).prefix(10))
+        let maxCPU = max(procs.map(\.cpu).max() ?? 1, 1)
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("NAME (\(procs.count))").frame(maxWidth: .infinity, alignment: .leading)
+                Text("MEM").frame(width: 70, alignment: .trailing)
+                Text("% CPU").frame(width: 110, alignment: .leading)
+                Text("PWR").frame(width: 48, alignment: .trailing)
+                Text("PID").frame(width: 56, alignment: .trailing)
+                Text("").frame(width: 28)
+            }
+            .font(.system(size: 10, weight: .bold))
+            .foregroundColor(Theme.muted)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
 
-    private func memTypeSlices(_ m: StatusSnapshot) -> [(String, Double, Color)] {
-        let total = max(Double(effectiveMem(m)), 1)
-        let app = Double(m.memApp ?? 0)
-        let wired = Double(m.memWired ?? 0)
-        let comp = Double(m.memCompressed ?? 0)
-        let cached = Double(m.memCached ?? 0)
-        let free = max(total - app - wired - comp - cached, 0)
-        return [
-            ("App", app / total, Dash.purple),
-            ("Wired", wired / total, Dash.blue),
-            ("Compressed", comp / total, Dash.pink),
-            ("Cached", cached / total, Dash.amber),
-            ("Free", free / total, Theme.muted.opacity(0.5)),
-        ].filter { $0.1 > 0.01 }
-    }
-
-    private func appMemSlices(_ m: StatusSnapshot) -> [(String, Double, Color)] {
-        let colors = [Dash.purple, Dash.blue, Dash.pink, Dash.teal, Dash.amber, Theme.muted]
-        let procs = Array((m.processes ?? []).sorted { $0.memMB > $1.memMB }.prefix(5))
-        let sum = max(procs.reduce(0) { $0 + $1.memMB }, 1)
-        return procs.enumerated().map { i, p in
-            (p.name, p.memMB / sum, colors[i % colors.count])
+            ForEach(procs) { p in
+                HStack(spacing: 8) {
+                    RoundedRectangle(cornerRadius: 1)
+                        .fill(selectedPID == p.pid ? Dash.amber : Color.clear)
+                        .frame(width: 3, height: 22)
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: "/System/Library/CoreServices/Finder.app"))
+                        .resizable()
+                        .frame(width: 18, height: 18)
+                        .opacity(0.001) // placeholder spacing; real icon below
+                        .overlay {
+                            Image(systemName: "app.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(Theme.muted)
+                        }
+                    Text(p.name)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Theme.ink)
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    Text(String(format: "%.0f MB", p.memMB))
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundColor(Theme.muted)
+                        .monospacedDigit()
+                        .frame(width: 70, alignment: .trailing)
+                    HStack(spacing: 6) {
+                        Text(String(format: "%.0f", p.cpu))
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundColor(Theme.muted)
+                            .monospacedDigit()
+                            .frame(width: 28, alignment: .trailing)
+                        GeometryReader { geo in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(Theme.surface2)
+                                Capsule()
+                                    .fill(p.cpu > 40 ? Dash.amber : Theme.muted.opacity(0.45))
+                                    .frame(width: max(2, geo.size.width * CGFloat(p.cpu / maxCPU)))
+                            }
+                        }
+                        .frame(height: 5)
+                    }
+                    .frame(width: 110, alignment: .leading)
+                    Text(String(format: "%.0f", min(p.cpu * 0.8, 99)))
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundColor(p.cpu > 40 ? Dash.amber : Theme.muted)
+                        .monospacedDigit()
+                        .frame(width: 48, alignment: .trailing)
+                    Text("\(p.pid)")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundColor(Theme.muted)
+                        .monospacedDigit()
+                        .frame(width: 56, alignment: .trailing)
+                    Menu {
+                        Button("Quit") { state.quitProcess(pid: p.pid) }
+                    } label: {
+                        Image(systemName: "ellipsis")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(Theme.muted)
+                            .frame(width: 28, height: 22)
+                    }
+                    .menuStyle(.borderlessButton)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 7)
+                .background(selectedPID == p.pid ? Theme.accentSoft : Color.clear)
+                .contentShape(Rectangle())
+                .onTapGesture { selectedPID = p.pid }
+            }
         }
+        .padding(.vertical, 4)
+        .background(cardBG)
     }
 
-    private func appCPUSlices(_ m: StatusSnapshot) -> [(String, Double, Color)] {
-        let colors = [Dash.blue, Dash.teal, Dash.amber, Dash.pink, Dash.purple, Theme.muted]
-        let procs = Array((m.processes ?? []).prefix(5))
-        let sum = max(procs.reduce(0) { $0 + $1.cpu }, 1)
-        return procs.enumerated().map { i, p in
-            (p.name, p.cpu / sum, colors[i % colors.count])
-        }
+    private var cardBG: some View {
+        RoundedRectangle(cornerRadius: 14, style: .continuous)
+            .fill(Theme.surface)
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(Theme.line, lineWidth: 1)
+            )
     }
 
-    private func pressureBadge(_ m: StatusSnapshot) -> String {
-        let p = m.memPressure ?? memRatio(m)
-        if p < 0.65 { return "✓ Normal" }
-        if p < 0.85 { return "Warn" }
-        return "Critical"
-    }
+    // MARK: Helpers
 
     private func refresh() async {
-        // quiet: don't flip busy / status chrome (avoids Status tab blink every 2s)
         await state.scan(quiet: true)
         pushHistory()
     }
@@ -487,7 +500,6 @@ struct StatusView: View {
         historyDisk.append(diskRatio(m))
         historyNet.append(min(((m.netDownKBs ?? 0) + (m.netUpKBs ?? 0)) / 800, 1))
         historyBatt.append(Double(m.batteryPct ?? 0) / 100)
-        for arr in [historyCPU, historyGPU, historyMem, historyDisk, historyNet, historyBatt] as [[Double]] { _ = arr }
         trim(&historyCPU); trim(&historyGPU); trim(&historyMem)
         trim(&historyDisk); trim(&historyNet); trim(&historyBatt)
     }
@@ -497,8 +509,7 @@ struct StatusView: View {
     }
 
     private func effectiveMem(_ m: StatusSnapshot) -> UInt64 {
-        if m.memTotal > 0 { return m.memTotal }
-        return ProcessInfo.processInfo.physicalMemory
+        m.memTotal > 0 ? m.memTotal : ProcessInfo.processInfo.physicalMemory
     }
 
     private func memRatio(_ m: StatusSnapshot) -> Double {
@@ -515,24 +526,47 @@ struct StatusView: View {
     private func pct(_ v: Double) -> String { "\(Int(v.rounded()))%" }
     private func rate(_ kbs: Double) -> String {
         if kbs >= 1024 { return String(format: "%.1f MB/s", kbs / 1024) }
-        if kbs >= 1 { return String(format: "%.0f kB/s", kbs) }
-        return "0 kB/s"
-    }
-    private func battTitle(_ m: StatusSnapshot) -> String {
-        if (m.batteryState == "Desktop") || ((m.batteryPct ?? 0) == 0 && (m.batteryState == "Unknown" || m.batteryState == nil)) {
-            return "AC"
-        }
-        return "\(m.batteryPct ?? 0)%"
+        if kbs >= 1 { return String(format: "%.0f KB/s", kbs) }
+        return "0 KB/s"
     }
     private func loadText(_ m: StatusSnapshot) -> String {
         guard let a = m.loadAvg, a.count >= 1 else { return "—" }
-        return String(format: "%.2f", a[0])
+        return String(format: "%.1f", a[0])
     }
-    private func approxUser(_ m: StatusSnapshot) -> String {
-        pct((m.cpuPercent ?? 0) * 0.65)
+    private func estTemp(_ pct: Double?) -> String {
+        let t = 40 + Int(((pct ?? 0) / 100) * 35)
+        return "\(t)°C"
     }
-    private func approxSystem(_ m: StatusSnapshot) -> String {
-        pct((m.cpuPercent ?? 0) * 0.35)
+    private func shortChip(_ m: StatusSnapshot) -> String {
+        let c = m.chip ?? ""
+        if c.localizedCaseInsensitiveContains("M4") { return "M4" }
+        if c.localizedCaseInsensitiveContains("M3") { return "M3" }
+        if c.localizedCaseInsensitiveContains("M2") { return "M2" }
+        if c.localizedCaseInsensitiveContains("M1") { return "M1" }
+        return c.split(separator: " ").first.map(String.init) ?? "Mac"
+    }
+    private func chipBadges(_ m: StatusSnapshot) -> [String] {
+        var out = [shortChip(m)]
+        let gb = Int(Double(effectiveMem(m)) / 1_073_741_824)
+        if gb > 0 { out.append("\(gb) GB") }
+        if let os = m.osVersion, !os.isEmpty { out.append(os.hasPrefix("macOS") ? os : "macOS \(os)") }
+        return out
+    }
+    private func uptimeLine(_ m: StatusSnapshot) -> String {
+        guard let sec = m.uptimeSec, sec > 0 else { return "up —" }
+        let days = sec / 86_400
+        let hours = (sec % 86_400) / 3600
+        if days > 0 { return "up \(days) day\(days == 1 ? "" : "s") · \(hours)h" }
+        let mins = (sec % 3600) / 60
+        if hours > 0 { return "up \(hours)h \(mins)m" }
+        return "up \(mins) minutes"
+    }
+    private func battDetail(_ m: StatusSnapshot) -> String {
+        var parts: [String] = []
+        if let c = m.batteryCycles, c > 0 { parts.append("\(c) cyc") }
+        if let w = m.batteryWatts, w > 0 { parts.append(String(format: "%.0fW", w)) }
+        parts.append(m.batteryState ?? "")
+        return parts.filter { !$0.isEmpty }.joined(separator: " · ")
     }
 }
 

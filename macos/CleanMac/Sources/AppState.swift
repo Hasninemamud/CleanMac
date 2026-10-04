@@ -8,8 +8,14 @@ import IOKit.pwr_mgt
 final class AppState {
     var section: NavSection = .clean
     var cleanSegment: CleanSegment = .junk
-    var analyzeSegment: AnalyzeSegment = .overview
-    var softwareSegment: SoftwareSegment = .caches
+    var cleanPhase: CleanPhase = .hero
+    var analyzeSegment: AnalyzeSegment = .map
+    var analyzeSelectedPath: String?
+    var softwareSegment: SoftwareSegment = .uninstall
+    var appsSort: AppsSort = .lastUsed
+    var appsQuery = ""
+    var alsoRemoveData = true
+    var ignoredUpdateIDs: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "ignoredUpdateIDs") ?? [])
     var statusLine = "Ready"
     var busy = false
     var errorMessage: String?
@@ -40,11 +46,16 @@ final class AppState {
 
     enum NavSection: String, CaseIterable, Identifiable {
         case clean = "Clean"
-        case software = "Software"
+        case software = "Apps"
         case analyze = "Analyze"
         case optimize = "Optimize"
         case status = "Status"
         var id: String { rawValue }
+    }
+
+    enum CleanPhase: String {
+        case hero
+        case review
     }
 
     enum CleanSegment: String, CaseIterable, Identifiable {
@@ -52,6 +63,39 @@ final class AppState {
         case installers = "Installers"
         case purge = "Purge"
         var id: String { rawValue }
+    }
+
+    /// All Clean-tab scan results (junk + installers + purge).
+    var cleanItems: [ScanItem] {
+        junk + installers + purgeItems
+    }
+
+    var cleanTotalBytes: Int64 {
+        cleanItems.reduce(0) { $0 + $1.byteSize }
+    }
+
+    var cleanCategories: [CleanCategory] {
+        var order: [String] = []
+        var buckets: [String: [ScanItem]] = [:]
+        for item in cleanItems {
+            let trimmed = item.category?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let key = trimmed.isEmpty ? Self.fallbackCategory(for: item) : trimmed
+            if buckets[key] == nil { order.append(key) }
+            buckets[key, default: []].append(item)
+        }
+        return order.compactMap { name -> CleanCategory? in
+            guard let items = buckets[name] else { return nil }
+            return CleanCategory(name: name, items: items.sorted { $0.byteSize > $1.byteSize })
+        }
+        .sorted { $0.byteSize > $1.byteSize }
+    }
+
+    private static func fallbackCategory(for item: ScanItem) -> String {
+        if item.path.localizedCaseInsensitiveContains("Caches") { return "App Caches" }
+        if item.path.localizedCaseInsensitiveContains("/Logs") { return "Logs" }
+        if item.path.hasSuffix(".dmg") || item.path.hasSuffix(".pkg") { return "Installers" }
+        if item.path.localizedCaseInsensitiveContains(".Trash") { return "Trash" }
+        return "Other"
     }
 
     enum AnalyzeSegment: String, CaseIterable, Identifiable {
@@ -63,12 +107,23 @@ final class AppState {
     }
 
     enum SoftwareSegment: String, CaseIterable, Identifiable {
-        case caches = "Caches"
-        case leftovers = "Leftovers"
-        case orphans = "Orphans"
         case uninstall = "Uninstall"
         case updates = "Updates"
         case startup = "Startup"
+        case caches = "Caches"
+        case leftovers = "Leftovers"
+        case orphans = "Orphans"
+        var id: String { rawValue }
+    }
+
+    /// Primary Apps tabs shown in the Mole-style chrome.
+    static let appsPrimarySegments: [SoftwareSegment] = [.uninstall, .updates, .startup]
+
+    enum AppsSort: String, CaseIterable, Identifiable {
+        case name = "Name"
+        case appSize = "App size"
+        case lastUsed = "Last Used"
+        case installed = "Installed"
         var id: String { rawValue }
     }
 
@@ -85,11 +140,7 @@ final class AppState {
     var currentItems: [ScanItem] {
         switch section {
         case .clean:
-            switch cleanSegment {
-            case .junk: return junk
-            case .installers: return installers
-            case .purge: return purgeItems
-            }
+            return cleanItems
         case .software:
             switch softwareSegment {
             case .caches: return appCacheItems
@@ -110,7 +161,42 @@ final class AppState {
     }
 
     var selectedBytes: Int64 {
-        currentItems.filter { selected.contains($0.path) }.reduce(0) { $0 + $1.byteSize }
+        if section == .software && softwareSegment == .uninstall {
+            return uninstallSelectedBytes
+        }
+        return currentItems.filter { selected.contains($0.path) }.reduce(0) { $0 + $1.byteSize }
+    }
+
+    var uninstallSelectedBytes: Int64 {
+        apps.filter { selected.contains($0.path) }.reduce(0) { sum, app in
+            let appPart = app.appBytes ?? app.byteSize
+            let dataPart = alsoRemoveData ? (app.leftoverBytes ?? 0) : 0
+            return sum + appPart + dataPart
+        }
+    }
+
+    var sortedApps: [ScanItem] {
+        let q = appsQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        var list = apps
+        if !q.isEmpty {
+            list = list.filter {
+                $0.name.lowercased().contains(q) || $0.path.lowercased().contains(q)
+            }
+        }
+        switch appsSort {
+        case .name:
+            return list.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case .appSize:
+            return list.sorted { ($0.appBytes ?? $0.byteSize) > ($1.appBytes ?? $1.byteSize) }
+        case .lastUsed:
+            return list.sorted {
+                (AppMeta.lastUsed($0.path) ?? .distantPast) > (AppMeta.lastUsed($1.path) ?? .distantPast)
+            }
+        case .installed:
+            return list.sorted {
+                (AppMeta.installed($0.path) ?? .distantPast) > (AppMeta.installed($1.path) ?? .distantPast)
+            }
+        }
     }
 
     func scan(quiet: Bool = false) async {
@@ -123,14 +209,10 @@ final class AppState {
         do {
             switch section {
             case .clean:
-                switch cleanSegment {
-                case .junk:
-                    junk = try await CLIExecutor.shared.run(["junk", "--json"], as: ItemsResponse.self).items
-                case .installers:
-                    installers = try await CLIExecutor.shared.run(["installer", "--json"], as: ItemsResponse.self).items
-                case .purge:
-                    purgeItems = try await CLIExecutor.shared.run(["purge", "--json"], as: ItemsResponse.self).items
-                }
+                // One Clean scan fills all buckets (Mole-style single review list).
+                junk = try await CLIExecutor.shared.run(["junk", "--json"], as: ItemsResponse.self).items
+                installers = try await CLIExecutor.shared.run(["installer", "--json"], as: ItemsResponse.self).items
+                purgeItems = try await CLIExecutor.shared.run(["purge", "--json"], as: ItemsResponse.self).items
             case .software:
                 switch softwareSegment {
                 case .caches, .leftovers, .orphans, .uninstall:
@@ -143,17 +225,16 @@ final class AppState {
                     startupItems = try await CLIExecutor.shared.run(["software", "startup", "--json"], as: StartupResponse.self).items
                 }
             case .analyze:
-                switch analyzeSegment {
-                case .overview:
-                    overview = try await CLIExecutor.shared.run(["analyze", "overview", "--json"], as: OverviewResponse.self)
-                case .map:
-                    treemap = try await CLIExecutor.shared.run(
-                        ["analyze", "treemap", "--path", treemapPath, "--json"],
-                        as: TreeNode.self
-                    )
-                case .large:
+                // Mole-style Analyze always refreshes disk overview + folder treemap.
+                overview = try await CLIExecutor.shared.run(["analyze", "overview", "--json"], as: OverviewResponse.self)
+                treemap = try await CLIExecutor.shared.run(
+                    ["analyze", "treemap", "--path", treemapPath, "--json"],
+                    as: TreeNode.self
+                )
+                analyzeSelectedPath = treemap?.children?.first?.path
+                if analyzeSegment == .large {
                     large = try await CLIExecutor.shared.run(["analyze", "large", "--json"], as: ItemsResponse.self).items
-                case .dupes:
+                } else if analyzeSegment == .dupes {
                     let r = try await CLIExecutor.shared.run(["analyze", "dupes", "--json"], as: DupesResponse.self)
                     dupes = r.groups
                     selected = Set(r.groups.flatMap { Array($0.files.dropFirst()).map(\.path) })
@@ -206,12 +287,20 @@ final class AppState {
 
     func trashSelected() async {
         let allowApps = section == .software && softwareSegment == .uninstall
-        let paths = selected.filter {
+        var raw = Array(selected)
+        if allowApps && alsoRemoveData {
+            for app in apps where selected.contains(app.path) {
+                for leftover in app.leftovers ?? [] {
+                    raw.append(leftover.path)
+                }
+            }
+        }
+        let paths = raw.filter {
             Safety.canTrash(path: $0, safety: "review", allowApps: allowApps)
                 || Safety.canTrash(path: $0, safety: "safe", allowApps: allowApps)
         }
         .filter { !Safety.isBlocked($0, allowApps: allowApps) }
-        let collapsed = collapseNested(Array(paths))
+        let collapsed = collapseNested(Array(Set(paths)))
         var ok = 0
         var fail = 0
         var bytes: Int64 = 0
@@ -264,6 +353,23 @@ final class AppState {
         selected = Set(currentItems.filter { $0.safety == "safe" }.map(\.path))
     }
 
+    func selectAllClean() {
+        selected = Set(cleanItems.filter { $0.safety != "blocked" && !Safety.isBlocked($0.path) }.map(\.path))
+    }
+
+    func selectRecommendedClean() {
+        selectSafe()
+        if selected.isEmpty {
+            // Prefer review+safe caches/logs over installers when nothing marked safe.
+            selected = Set(cleanItems.filter {
+                $0.safety != "blocked" && !Safety.isBlocked($0.path)
+                    && ($0.safety == "safe" || $0.isCacheLeftover
+                        || ($0.category?.localizedCaseInsensitiveContains("cache") == true)
+                        || ($0.category?.localizedCaseInsensitiveContains("log") == true))
+            }.map(\.path))
+        }
+    }
+
     func loadSettingsData() async {
         do {
             whitelist = try await CLIExecutor.shared.run(["whitelist", "list", "--json"], as: WhitelistResponse.self).paths
@@ -296,13 +402,64 @@ final class AppState {
         }
     }
 
+    func scanAppsQuiet() async {
+        do {
+            let r = try await CLIExecutor.shared.run(["apps", "--json"], as: AppsResponse.self)
+            apps = r.apps
+            orphans = r.orphans
+        } catch {
+            // keep existing list
+        }
+    }
+
+    func ignoreUpdate(_ item: UpdateItem) {
+        ignoredUpdateIDs.insert(item.id)
+        UserDefaults.standard.set(Array(ignoredUpdateIDs), forKey: "ignoredUpdateIDs")
+        statusLine = "Ignored \(item.name)"
+    }
+
     func openUpdate(_ item: UpdateItem) {
         if item.source == "mas" {
             NSWorkspace.shared.open(URL(string: "macappstore://showUpdatesPage")!)
-        } else if item.source.contains("homebrew") {
-            // Reveal Terminal hint via open brew docs; copy upgrade cmd is enough in UI.
-            NSWorkspace.shared.open(URL(string: "https://brew.sh")!)
+            return
         }
+        if item.source.contains("homebrew") {
+            let flag = item.source.contains("cask") ? "--cask " : ""
+            let script = "brew upgrade \(flag)\(item.name)"
+            let src = """
+            tell application "Terminal"
+              activate
+              do script "\(script)"
+            end tell
+            """
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+            proc.arguments = ["-e", src]
+            try? proc.run()
+            statusLine = "Updating \(item.name)…"
+            return
+        }
+        if let detail = item.detail, let url = URL(string: detail), url.scheme?.hasPrefix("http") == true {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    var visibleUpdates: [UpdateItem] {
+        updates.filter { !ignoredUpdateIDs.contains($0.id) }
+    }
+
+    var updatesInApp: [UpdateItem] {
+        visibleUpdates.filter { ($0.group ?? "in-app") == "in-app" && $0.source != "mas" }
+    }
+
+    var updatesOutside: [UpdateItem] {
+        visibleUpdates.filter { ($0.group ?? "") == "outside" || $0.source == "mas" }
+    }
+
+    /// Installed apps that are not in the outdated brew/mas list.
+    var upToDateApps: [ScanItem] {
+        let outdated = Set(visibleUpdates.map { $0.name.lowercased() })
+        return sortedApps.filter { !outdated.contains($0.name.lowercased()) }
     }
 
     func quitProcess(pid: Int) {

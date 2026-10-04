@@ -9,9 +9,11 @@ struct ContentView: View {
         @Bindable var state = state
         VStack(spacing: 0) {
             topBar
-            pageHead
+            if !selfContainedSection {
+                pageHead
+            }
             content
-            if !state.selected.isEmpty {
+            if !selfContainedSection, !state.selected.isEmpty {
                 selectionDock
             }
         }
@@ -151,8 +153,15 @@ struct ContentView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.horizontal, 22)
-        .padding(.bottom, 14)
+        .padding(.horizontal, selfContainedSection ? 28 : 22)
+        .padding(.top, selfContainedSection ? 18 : 0)
+        .padding(.bottom, selfContainedSection ? 18 : 14)
+    }
+
+    private var selfContainedSection: Bool {
+        state.section == .clean || state.section == .software
+            || state.section == .optimize || state.section == .analyze
+            || state.section == .status
     }
 
     private var selectionDock: some View {
@@ -196,12 +205,7 @@ struct ContentView: View {
 
     private var scanLabel: String {
         switch state.section {
-        case .clean:
-            switch state.cleanSegment {
-            case .junk: return "Scan"
-            case .installers: return "Find installers"
-            case .purge: return "Find artifacts"
-            }
+        case .clean: return "Scan"
         case .software:
             switch state.softwareSegment {
             case .updates: return "Check updates"

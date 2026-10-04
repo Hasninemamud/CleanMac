@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+import AppKit
 
 struct ScanItem: Identifiable, Codable, Hashable {
     var id: String { path }
@@ -26,6 +27,21 @@ struct ScanItem: Identifiable, Codable, Hashable {
         if let root, root.localizedCaseInsensitiveContains("Caches") { return true }
         return path.localizedCaseInsensitiveContains("/Library/Caches/")
             || path.localizedCaseInsensitiveContains("/Caches/")
+    }
+}
+
+struct CleanCategory: Identifiable {
+    var id: String { name }
+    let name: String
+    let items: [ScanItem]
+
+    var byteSize: Int64 { items.reduce(0) { $0 + $1.byteSize } }
+    var selectable: [ScanItem] {
+        items.filter { $0.safety != "blocked" && !Safety.isBlocked($0.path) }
+    }
+    var blurb: String {
+        items.first?.explanation
+            ?? "Review items before moving them to Trash."
     }
 }
 
@@ -96,6 +112,8 @@ struct UpdateItem: Identifiable, Codable, Hashable {
     var current: String?
     var latest: String?
     var detail: String?
+    /// in-app | outside | current (optional; Swift may synthesize)
+    var group: String?
 }
 
 struct UpdatesResponse: Codable {
@@ -177,6 +195,7 @@ struct StatusSnapshot: Codable {
     var batteryPct: Int?
     var batteryState: String?
     var batteryWatts: Double?
+    var batteryCycles: Int?
     var netDownKBs: Double?
     var netUpKBs: Double?
     var gpuPercent: Double?
@@ -315,5 +334,39 @@ enum ByteFormat {
             return String(format: "%.0f %@", v, units[i])
         }
         return String(format: "%.1f %@", v, units[i])
+    }
+}
+
+enum AppMeta {
+    static func version(_ path: String) -> String? {
+        Bundle(url: URL(fileURLWithPath: path))?
+            .object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String
+    }
+
+    static func lastUsed(_ path: String) -> Date? {
+        let url = URL(fileURLWithPath: path)
+        return (try? url.resourceValues(forKeys: [.contentAccessDateKey])).flatMap(\.contentAccessDate)
+            ?? (try? url.resourceValues(forKeys: [.contentModificationDateKey])).flatMap(\.contentModificationDate)
+    }
+
+    static func installed(_ path: String) -> Date? {
+        (try? URL(fileURLWithPath: path).resourceValues(forKeys: [.creationDateKey])).flatMap(\.creationDate)
+    }
+
+    static func relative(_ date: Date?) -> String {
+        guard let date else { return "unknown" }
+        let days = Calendar.current.dateComponents([.day], from: date, to: Date()).day ?? 0
+        if days <= 0 { return "active today" }
+        if days == 1 { return "active 1 day ago" }
+        if days < 30 { return "active \(days) days ago" }
+        let months = max(1, days / 30)
+        if months < 12 { return "active \(months) mo ago" }
+        return "active \(months / 12) yr ago"
+    }
+
+    static func icon(_ path: String) -> NSImage {
+        let img = NSWorkspace.shared.icon(forFile: path)
+        img.size = NSSize(width: 40, height: 40)
+        return img
     }
 }

@@ -2,159 +2,894 @@ import SwiftUI
 
 struct CleanView: View {
     @Environment(AppState.self) private var state
+    @State private var expanded = Set<String>()
 
     var body: some View {
         @Bindable var state = state
-        VStack(alignment: .leading, spacing: 12) {
-            segmentBar
-            toolbar
-            ItemTable(items: state.currentItems, selected: $state.selected)
+        Group {
+            switch state.cleanPhase {
+            case .hero:
+                hero
+            case .review:
+                review(selected: $state.selected)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task {
+            if state.cleanItems.isEmpty, !state.busy {
+                await state.scan()
+            }
         }
     }
 
-    private var segmentBar: some View {
-        HStack(spacing: 4) {
-            ForEach(AppState.CleanSegment.allCases) { s in
-                SegmentPill(title: s.rawValue, selected: state.cleanSegment == s) {
-                    state.cleanSegment = s
-                    state.selected.removeAll()
+    // MARK: - Hero (scan summary)
+
+    private var hero: some View {
+        VStack(spacing: 0) {
+            Spacer(minLength: 24)
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            colors: [Theme.accent.opacity(0.22), Theme.bg.opacity(0)],
+                            center: .center,
+                            startRadius: 20,
+                            endRadius: 140
+                        )
+                    )
+                    .frame(width: 280, height: 280)
+                Image(systemName: "globe.americas.fill")
+                    .font(.system(size: 120, weight: .ultraLight))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [Theme.ink.opacity(0.85), Theme.muted],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .symbolRenderingMode(.hierarchical)
+            }
+            .padding(.bottom, 28)
+
+            Text(state.cleanItems.isEmpty ? "Ready to scan" : "\(ByteFormat.disk(state.cleanTotalBytes)) found")
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .foregroundColor(Theme.ink)
+                .contentTransition(.numericText())
+
+            HStack(spacing: 6) {
+                if state.busy {
+                    Text("Scanning…")
+                        .foregroundColor(Theme.muted)
+                } else if state.cleanItems.isEmpty {
+                    Text("Caches, installers, and leftovers")
+                        .foregroundColor(Theme.muted)
+                    Text("·").foregroundColor(Theme.muted.opacity(0.5))
+                    Button("Scan now") { Task { await state.scan() } }
+                        .buttonStyle(.plain)
+                        .foregroundColor(Theme.ok)
+                } else {
+                    Text("\(state.cleanItems.count) items in \(state.cleanCategories.count) categories")
+                        .foregroundColor(Theme.muted)
+                    Text("·").foregroundColor(Theme.muted.opacity(0.5))
+                    Button("Scan again") { Task { await state.scan() } }
+                        .buttonStyle(.plain)
+                        .foregroundColor(Theme.ok)
+                        .disabled(state.busy)
                 }
             }
-            Spacer()
+            .font(.system(size: 13, weight: .medium))
+            .padding(.top, 8)
+
+            Spacer(minLength: 24)
+
+            Button {
+                if state.cleanItems.isEmpty {
+                    Task { await state.scan() }
+                } else {
+                    if state.selected.isEmpty { state.selectRecommendedClean() }
+                    state.cleanPhase = .review
+                }
+            } label: {
+                Text(state.cleanItems.isEmpty ? "Scan Mac" : "Review results")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(Theme.bg)
+                    .padding(.horizontal, 36)
+                    .padding(.vertical, 14)
+                    .background(Theme.ink)
+                    .clipShape(Capsule())
+                    .shadow(color: Theme.ink.opacity(0.18), radius: 16, y: 6)
+            }
+            .buttonStyle(.plain)
+            .disabled(state.busy)
+            .padding(.bottom, 36)
         }
-        .padding(3)
-        .background(Theme.surface2)
-        .clipShape(Capsule())
-        .frame(maxWidth: 360, alignment: .leading)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private var toolbar: some View {
+    // MARK: - Review (category list)
+
+    private func review(selected: Binding<Set<String>>) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .top) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Ready to clean")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundColor(Theme.ink)
+                    Text(reviewSubtitle)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Theme.muted)
+                        .lineLimit(2)
+                }
+                Spacer()
+                HStack(spacing: 8) {
+                    Button {
+                        Task { await state.scan() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(Theme.muted)
+                            .frame(width: 34, height: 34)
+                            .background(Theme.surface)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(Theme.line, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(state.busy)
+                    .help("Scan again")
+
+                    Button {
+                        state.cleanPhase = .hero
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(Theme.muted)
+                            .frame(width: 34, height: 34)
+                            .background(Theme.surface)
+                            .clipShape(Circle())
+                            .overlay(Circle().stroke(Theme.line, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .help("Back")
+                }
+            }
+            .padding(.bottom, 16)
+
+            ScrollView {
+                LazyVStack(spacing: 10) {
+                    ForEach(state.cleanCategories) { cat in
+                        CleanCategoryRow(
+                            category: cat,
+                            selected: selected,
+                            expanded: Binding(
+                                get: { expanded.contains(cat.name) },
+                                set: { on in
+                                    if on { expanded.insert(cat.name) } else { expanded.remove(cat.name) }
+                                }
+                            )
+                        )
+                    }
+                }
+                .padding(.bottom, 8)
+            }
+
+            reviewFooter
+        }
+    }
+
+    private var reviewSubtitle: String {
+        let gb = ByteFormat.disk(state.selectedBytes > 0 ? state.selectedBytes : state.cleanTotalBytes)
+        let holding = holdingApps.prefix(2).joined(separator: ", ")
+        var parts = [
+            "\(gb) cleanable",
+            "\(state.selected.isEmpty ? state.cleanItems.count : state.selected.count) items",
+            "\(state.cleanCategories.count) categories",
+        ]
+        if !holding.isEmpty {
+            parts.append("\(holding) holding cache")
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private var holdingApps: [String] {
+        // Best-effort: pick distinct top-level names from selected (or all) cache paths.
+        let paths = state.selected.isEmpty
+            ? state.cleanItems.map(\.path)
+            : state.cleanItems.filter { state.selected.contains($0.path) }.map(\.path)
+        var seen = Set<String>()
+        var names: [String] = []
+        for p in paths {
+            let name = URL(fileURLWithPath: p).lastPathComponent
+                .replacingOccurrences(of: ".cache", with: "")
+            if name.count > 2, seen.insert(name).inserted {
+                names.append(name)
+            }
+            if names.count >= 3 { break }
+        }
+        return names
+    }
+
+    private var reviewFooter: some View {
         HStack(spacing: 12) {
-            if state.cleanSegment == .junk {
-                Button {
-                    state.selectSafe()
-                } label: {
-                    Text("Select safe")
-                }
-                .buttonStyle(SoftButtonStyle())
-                .disabled(state.junk.isEmpty)
+            HStack(spacing: 8) {
+                Text("\(state.selected.count) selected")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Theme.ink)
+                Text("·").foregroundColor(Theme.muted.opacity(0.5))
+                Button("All") { state.selectAllClean() }
+                    .buttonStyle(.plain)
+                Text("·").foregroundColor(Theme.muted.opacity(0.5))
+                Button("None") { state.selected.removeAll() }
+                    .buttonStyle(.plain)
+                Text("·").foregroundColor(Theme.muted.opacity(0.5))
+                Button("Recommended") { state.selectRecommendedClean() }
+                    .buttonStyle(.plain)
             }
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundColor(Theme.ok)
+
             Spacer()
-            Text("\(state.currentItems.count) items")
-                .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundColor(Theme.muted)
+
+            Button {
+                state.confirmTrash = true
+            } label: {
+                Text("Permanently clean · \(ByteFormat.disk(state.selectedBytes))")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(Theme.bg)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+                    .background(state.selected.isEmpty ? Theme.muted : Theme.ink)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(state.selected.isEmpty || state.busy)
+        }
+        .padding(.top, 12)
+        .padding(.bottom, 4)
+    }
+}
+
+struct CleanCategoryRow: View {
+    let category: CleanCategory
+    @Binding var selected: Set<String>
+    @Binding var expanded: Bool
+
+    private var selectablePaths: [String] { category.selectable.map(\.path) }
+    private var selectedCount: Int { selectablePaths.filter { selected.contains($0) }.count }
+    private var selectedBytes: Int64 {
+        category.items.filter { selected.contains($0.path) }.reduce(0) { $0 + $1.byteSize }
+    }
+
+    private var triState: Bool? {
+        if selectedCount == 0 { return false }
+        if selectedCount == selectablePaths.count { return true }
+        return nil
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 12) {
+                Button {
+                    toggleCategory()
+                } label: {
+                    Image(systemName: checkboxSymbol)
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(triState == false ? Theme.muted : Theme.ok)
+                }
+                .buttonStyle(.plain)
+                .disabled(selectablePaths.isEmpty)
+
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 8) {
+                        Text(category.name)
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(Theme.ink)
+                        Text("\(selectedCount)/\(category.items.count) selected")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(Theme.muted)
+                    }
+                    Text(category.blurb)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Theme.muted)
+                        .lineLimit(1)
+                }
+
+                Spacer(minLength: 8)
+
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(ByteFormat.string(selectedBytes))
+                        .font(.system(size: 14, weight: .bold, design: .rounded))
+                        .foregroundColor(Theme.ink)
+                        .monospacedDigit()
+                    Text("/ \(ByteFormat.string(category.byteSize))")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(Theme.muted)
+                        .monospacedDigit()
+                }
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) { expanded.toggle() }
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundColor(Theme.muted)
+                        .rotationEffect(.degrees(expanded ? 180 : 0))
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.easeInOut(duration: 0.18)) { expanded.toggle() }
+            }
+
+            if expanded {
+                Divider().background(Theme.line)
+                ForEach(category.items) { item in
+                    ItemRow(item: item, selected: $selected)
+                    Divider().background(Theme.line)
+                }
+            }
+        }
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(Theme.line, lineWidth: 1)
+        )
+    }
+
+    private var checkboxSymbol: String {
+        switch triState {
+        case .some(true): return "checkmark.square.fill"
+        case .some(false): return "square"
+        case .none: return "minus.square.fill"
+        }
+    }
+
+    private func toggleCategory() {
+        if triState == true {
+            for p in selectablePaths { selected.remove(p) }
+        } else {
+            for p in selectablePaths { selected.insert(p) }
         }
     }
 }
 
 struct SoftwareView: View {
     @Environment(AppState.self) private var state
+    @State private var showSearch = false
 
     var body: some View {
         @Bindable var state = state
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 4) {
-                ForEach(AppState.SoftwareSegment.allCases) { s in
-                    SegmentPill(title: s.rawValue, selected: state.softwareSegment == s) {
-                        state.softwareSegment = s
-                        state.selected.removeAll()
-                    }
-                }
-                Spacer()
-            }
-            .padding(3)
-            .background(Theme.surface2)
-            .clipShape(Capsule())
+        VStack(alignment: .leading, spacing: 0) {
+            appsChrome(selected: $state.selected, query: $state.appsQuery)
 
-            HStack(spacing: 12) {
-                if state.softwareSegment == .caches || state.softwareSegment == .leftovers {
-                    Button { state.selected = Set(state.currentItems.map(\.path)) } label: { Text("Select all") }
-                        .buttonStyle(SoftButtonStyle())
-                        .disabled(state.currentItems.isEmpty)
-                } else if state.softwareSegment == .orphans {
-                    Button { state.selected = Set(state.orphans.map(\.path)) } label: { Text("Select orphans") }
-                        .buttonStyle(SoftButtonStyle())
-                        .disabled(state.orphans.isEmpty)
-                } else if state.softwareSegment == .uninstall {
-                    Button { state.selected = Set(state.apps.map(\.path)) } label: { Text("Select apps") }
-                        .buttonStyle(SoftButtonStyle())
-                        .disabled(state.apps.isEmpty)
+            Group {
+                switch state.softwareSegment {
+                case .uninstall:
+                    uninstallList(selected: $state.selected)
+                case .updates:
+                    updatesList
+                case .startup:
+                    startupList
+                case .caches, .leftovers, .orphans:
+                    ItemTable(items: state.currentItems, selected: $state.selected)
                 }
-                Spacer()
-                Text(summary)
-                    .font(.system(size: 12, weight: .medium, design: .rounded))
-                    .foregroundColor(Theme.muted)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            switch state.softwareSegment {
-            case .updates:
-                updatesList
-            case .startup:
-                startupList
-            default:
-                ItemTable(items: state.currentItems, selected: $state.selected)
+            if state.softwareSegment == .uninstall {
+                uninstallFooter(selected: $state.selected)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task {
+            if state.apps.isEmpty, !state.busy {
+                await state.scan()
             }
         }
     }
 
-    private var summary: String {
-        switch state.softwareSegment {
-        case .caches: return "\(state.appCacheItems.count) cache items"
-        case .leftovers: return "\(state.appLeftoverItems.count) leftovers"
-        case .orphans: return "\(state.orphans.count) orphans"
-        case .uninstall: return "\(state.apps.count) apps — select to Trash"
-        case .updates: return "\(state.updates.count) update sources"
-        case .startup: return "\(state.startupItems.count) startup items"
+    private func appsChrome(selected: Binding<Set<String>>, query: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                HStack(spacing: 2) {
+                    ForEach(AppState.appsPrimarySegments) { s in
+                        SegmentPill(title: s.rawValue, selected: state.softwareSegment == s) {
+                            state.softwareSegment = s
+                            state.selected.removeAll()
+                            Task { await state.scan() }
+                        }
+                    }
+                    Button {
+                        Task { await state.scan() }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(Theme.muted)
+                            .frame(width: 28, height: 28)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(state.busy)
+                    .help("Refresh")
+                }
+                .padding(3)
+                .background(Theme.surface2)
+                .clipShape(Capsule())
+
+                Spacer()
+
+                if state.softwareSegment == .uninstall || state.softwareSegment == .updates {
+                    HStack(spacing: 10) {
+                        ForEach(AppState.AppsSort.allCases) { sort in
+                            Button {
+                                state.appsSort = sort
+                            } label: {
+                                HStack(spacing: 3) {
+                                    Text(sort.rawValue)
+                                    if state.appsSort == sort {
+                                        Image(systemName: "arrow.up")
+                                            .font(.system(size: 9, weight: .bold))
+                                    }
+                                }
+                                .font(.system(size: 12, weight: state.appsSort == sort ? .bold : .medium))
+                                .foregroundColor(state.appsSort == sort ? Theme.ink : Theme.muted)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Button {
+                            withAnimation { showSearch.toggle() }
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(showSearch || !state.appsQuery.isEmpty ? Theme.ink : Theme.muted)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                } else if state.softwareSegment == .startup {
+                    HStack(spacing: 8) {
+                        Text("Filter")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(Theme.muted)
+                        Button {
+                            withAnimation { showSearch.toggle() }
+                        } label: {
+                            Image(systemName: "magnifyingglass")
+                                .font(.system(size: 12, weight: .semibold))
+                                .foregroundColor(showSearch || !state.appsQuery.isEmpty ? Theme.ink : Theme.muted)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            if showSearch, state.softwareSegment == .uninstall || state.softwareSegment == .startup || state.softwareSegment == .updates {
+                TextField(state.softwareSegment == .startup ? "Filter startup items" : "Search apps", text: query)
+                    .textFieldStyle(.plain)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Theme.surface)
+                    .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Theme.line, lineWidth: 1)
+                    )
+            }
+
+            if state.softwareSegment == .uninstall {
+                let total = state.apps.reduce(Int64(0)) { $0 + ($1.appBytes ?? $1.byteSize) }
+                Text("Installed Apps  \(state.sortedApps.count) apps · \(ByteFormat.string(total))")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(Theme.muted)
+            }
         }
+        .padding(.bottom, 10)
+    }
+
+    private func uninstallList(selected: Binding<Set<String>>) -> some View {
+        Group {
+            if state.sortedApps.isEmpty {
+                EmptyState(
+                    title: state.busy ? "Scanning apps…" : "No apps found",
+                    systemImage: "square.grid.2x2",
+                    message: "Scan /Applications to list installed apps and leftovers."
+                )
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 4) {
+                        ForEach(state.sortedApps) { app in
+                            AppsUninstallRow(app: app, selected: selected, alsoRemoveData: state.alsoRemoveData)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private func uninstallFooter(selected: Binding<Set<String>>) -> some View {
+        let picked = state.apps.filter { selected.wrappedValue.contains($0.path) }
+        let title: String = {
+            if picked.isEmpty { return "No apps selected" }
+            if picked.count == 1 { return picked[0].name }
+            return "\(picked[0].name) +\(picked.count - 1)"
+        }()
+
+        return HStack(alignment: .center, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("\(title) · \(picked.count) app\(picked.count == 1 ? "" : "s") · \(ByteFormat.string(state.uninstallSelectedBytes))")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(Theme.ink)
+                HStack(spacing: 12) {
+                    Button {
+                        state.alsoRemoveData.toggle()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: state.alsoRemoveData ? "checkmark.square.fill" : "square")
+                            Text("Also remove data")
+                        }
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Theme.danger)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button("Clear selection") {
+                        selected.wrappedValue.removeAll()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Theme.danger)
+                    .disabled(picked.isEmpty)
+                }
+            }
+
+            Spacer()
+
+            Button {
+                state.confirmTrash = true
+            } label: {
+                Text(picked.isEmpty ? "Remove" : "Remove \(picked.count)")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(Theme.bg)
+                    .padding(.horizontal, 28)
+                    .padding(.vertical, 12)
+                    .background(picked.isEmpty ? Theme.muted : Theme.ink)
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+            .disabled(picked.isEmpty || state.busy)
+        }
+        .padding(.top, 14)
+        .padding(.bottom, 4)
     }
 
     private var updatesList: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(state.updates) { u in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(u.name).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.ink)
-                            Text(u.detail ?? u.source).font(.system(size: 10)).foregroundColor(Theme.muted)
-                        }
-                        Spacer()
-                        Text(u.source).font(.system(size: 10, weight: .bold)).foregroundColor(Theme.accent)
-                        Button("Open") { state.openUpdate(u) }.buttonStyle(SoftButtonStyle())
+        let q = state.appsQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let inApp = state.updatesInApp.filter { q.isEmpty || $0.name.lowercased().contains(q) }
+        let outside = state.updatesOutside.filter { q.isEmpty || $0.name.lowercased().contains(q) }
+        let current = state.upToDateApps.filter { q.isEmpty || $0.name.lowercased().contains(q) }
+
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: 18) {
+                if !inApp.isEmpty {
+                    appsSectionHeader("Update in CleanMac", count: inApp.count)
+                    ForEach(inApp) { u in
+                        AppsUpdateRow(item: u)
                     }
-                    .padding(.horizontal, 12).padding(.vertical, 9)
-                    Divider().background(Theme.line)
+                }
+                if !outside.isEmpty {
+                    appsSectionHeader("Finish Outside CleanMac", count: outside.count)
+                    ForEach(outside) { u in
+                        AppsUpdateRow(item: u)
+                    }
+                }
+                if !current.isEmpty {
+                    appsSectionHeader("Up to Date Apps", count: current.count)
+                    ForEach(current) { app in
+                        AppsUpToDateRow(app: app)
+                    }
+                }
+                if inApp.isEmpty, outside.isEmpty, current.isEmpty {
+                    EmptyState(
+                        title: state.busy ? "Checking…" : "No updates",
+                        systemImage: "arrow.triangle.2.circlepath",
+                        message: "Homebrew outdated apps and up-to-date installs appear here."
+                    )
                 }
             }
-            .background(Theme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .task {
+            if state.apps.isEmpty { await state.scanAppsQuiet() }
         }
     }
 
     private var startupList: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(state.startupItems) { s in
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(s.name).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.ink)
-                            Text(s.path).font(.system(size: 10)).foregroundColor(Theme.muted).lineLimit(1)
-                        }
-                        Spacer()
-                        Toggle("", isOn: Binding(
-                            get: { s.enabled },
-                            set: { on in Task { await state.setStartup(path: s.path, enabled: on) } }
-                        ))
-                        .toggleStyle(.switch)
-                        .labelsHidden()
-                        .controlSize(.mini)
+        let q = state.appsQuery.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let items = state.startupItems.filter {
+            q.isEmpty || $0.name.lowercased().contains(q) || $0.detail?.lowercased().contains(q) == true
+        }
+        let login = items.filter { $0.kind == "login-item" }
+        let background = items.filter { $0.kind == "background-item" }
+        let services = items.filter { $0.kind == "launch-agent" || $0.kind == "launch-daemon" }
+
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: 18) {
+                if !login.isEmpty {
+                    appsSectionHeader("Login items", count: login.count)
+                    ForEach(login) { s in
+                        AppsStartupRow(item: s)
                     }
-                    .padding(.horizontal, 12).padding(.vertical, 9)
-                    Divider().background(Theme.line)
+                }
+                if !background.isEmpty {
+                    appsSectionHeader("Allow in the background", count: background.count)
+                    ForEach(background) { s in
+                        AppsStartupRow(item: s)
+                    }
+                }
+                if !services.isEmpty {
+                    appsSectionHeader("Background services", count: services.count)
+                    ForEach(services) { s in
+                        AppsStartupRow(item: s)
+                    }
+                }
+                if login.isEmpty, background.isEmpty, services.isEmpty {
+                    EmptyState(
+                        title: state.busy ? "Scanning…" : "No startup items",
+                        systemImage: "power",
+                        message: "Login items and LaunchAgents appear here."
+                    )
                 }
             }
-            .background(Theme.surface)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
+    }
+
+    private func appsSectionHeader(_ title: String, count: Int) -> some View {
+        Text("\(title)  \(count)")
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundColor(Theme.muted)
+            .padding(.top, 4)
+    }
+}
+
+struct AppsUpdateRow: View {
+    @Environment(AppState.self) private var state
+    let item: UpdateItem
+
+    private var sourceLabel: String {
+        switch item.source {
+        case "mas": return "App Store"
+        case "homebrew-cask", "homebrew-formula": return "Homebrew"
+        default: return "Website"
+        }
+    }
+
+    private var versionLine: String? {
+        if let c = item.current, let l = item.latest, !c.isEmpty, !l.isEmpty {
+            return "\(c) -> \(l)"
+        }
+        return item.latest ?? item.detail
+    }
+
+    private var actionTitle: String {
+        if item.source == "mas" || (item.group ?? "") == "outside" { return "Download" }
+        return "Update"
+    }
+
+    private var iconPath: String? {
+        state.apps.first { $0.name.localizedCaseInsensitiveCompare(item.name) == .orderedSame }?.path
+            ?? state.apps.first { $0.name.lowercased().contains(item.name.lowercased()) }?.path
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            appIcon
+            VStack(alignment: .leading, spacing: 4) {
+                HStack(spacing: 8) {
+                    Text(item.name)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Theme.ink)
+                    Text(sourceLabel)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(Theme.muted)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 2)
+                        .background(Theme.surface2)
+                        .clipShape(Capsule())
+                }
+                if let versionLine {
+                    Text(versionLine)
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(Theme.danger)
+                }
+            }
+            Spacer()
+            Button("Ignore Updates") { state.ignoreUpdate(item) }
+                .buttonStyle(.plain)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(Theme.muted)
+            Button(actionTitle) { state.openUpdate(item) }
+                .buttonStyle(SoftButtonStyle())
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Theme.surface.opacity(0.65))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    @ViewBuilder
+    private var appIcon: some View {
+        if let path = iconPath {
+            Image(nsImage: AppMeta.icon(path))
+                .resizable()
+                .frame(width: 36, height: 36)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        } else {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Theme.surface2)
+                .frame(width: 36, height: 36)
+                .overlay {
+                    Image(systemName: "arrow.down.circle")
+                        .foregroundColor(Theme.muted)
+                }
+        }
+    }
+}
+
+struct AppsUpToDateRow: View {
+    let app: ScanItem
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(nsImage: AppMeta.icon(app.path))
+                .resizable()
+                .frame(width: 36, height: 36)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(app.name)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Theme.ink)
+                Text("\(AppMeta.version(app.path) ?? "—") · \(ByteFormat.string(app.appBytes ?? app.byteSize)) · \(AppMeta.relative(AppMeta.lastUsed(app.path)).replacingOccurrences(of: "active ", with: "opened "))")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(Theme.muted)
+                    .lineLimit(1)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+    }
+}
+
+struct AppsStartupRow: View {
+    @Environment(AppState.self) private var state
+    let item: StartupItem
+
+    private var canToggle: Bool { !item.path.hasPrefix("login:") }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            startupIcon
+            VStack(alignment: .leading, spacing: 3) {
+                Text(item.name)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Theme.ink)
+                    .lineLimit(1)
+                Text(item.detail ?? item.kind)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(Theme.muted)
+                    .lineLimit(1)
+            }
+            Spacer()
+            Toggle("", isOn: Binding(
+                get: { item.enabled },
+                set: { on in
+                    guard canToggle else { return }
+                    Task { await state.setStartup(path: item.path, enabled: on) }
+                }
+            ))
+            .toggleStyle(.switch)
+            .labelsHidden()
+            .controlSize(.small)
+            .disabled(!canToggle)
+            .opacity(canToggle ? 1 : 0.45)
+            .help(canToggle ? "Enable or disable" : "Manage in System Settings → Login Items")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+    }
+
+    @ViewBuilder
+    private var startupIcon: some View {
+        let appPath = state.apps.first {
+            item.name.localizedCaseInsensitiveContains($0.name) || $0.name.localizedCaseInsensitiveContains(item.name)
+        }?.path
+        if let appPath {
+            Image(nsImage: AppMeta.icon(appPath))
+                .resizable()
+                .frame(width: 36, height: 36)
+                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        } else {
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Theme.surface2)
+                .frame(width: 36, height: 36)
+                .overlay {
+                    Image(systemName: item.kind == "login-item" ? "person.crop.circle" : "gearshape.fill")
+                        .foregroundColor(Theme.muted)
+                }
+        }
+    }
+}
+
+struct AppsUninstallRow: View {
+    let app: ScanItem
+    @Binding var selected: Set<String>
+    var alsoRemoveData: Bool
+
+    private var isOn: Binding<Bool> {
+        Binding(
+            get: { selected.contains(app.path) },
+            set: { on in
+                if on { selected.insert(app.path) } else { selected.remove(app.path) }
+            }
+        )
+    }
+
+    private var removeBytes: Int64 {
+        let appPart = app.appBytes ?? app.byteSize
+        return alsoRemoveData ? appPart + (app.leftoverBytes ?? 0) : appPart
+    }
+
+    private var metaLine: String {
+        let ver = AppMeta.version(app.path) ?? "—"
+        let size = ByteFormat.string(app.appBytes ?? app.byteSize)
+        let used = AppMeta.relative(AppMeta.lastUsed(app.path))
+        return "\(ver) · \(size) · \(used)"
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(nsImage: AppMeta.icon(app.path))
+                .resizable()
+                .interpolation(.high)
+                .frame(width: 40, height: 40)
+                .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(app.name)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(Theme.ink)
+                    .lineLimit(1)
+                Text(metaLine)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(Theme.muted)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 8)
+
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("Removes \(ByteFormat.string(removeBytes))")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Theme.ink)
+                if (app.leftoverBytes ?? 0) > 0 {
+                    Text("\(ByteFormat.string(app.leftoverBytes ?? 0)) more to review")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Theme.muted)
+                }
+            }
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(Theme.muted.opacity(0.7))
+
+            CheckMark(isOn: isOn, disabled: false)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(selected.contains(app.path) ? Theme.accentSoft : Color.clear)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .contentShape(Rectangle())
+        .onTapGesture { isOn.wrappedValue.toggle() }
     }
 }
 
@@ -165,97 +900,347 @@ struct AppsView: View {
 struct AnalyzeView: View {
     @Environment(AppState.self) private var state
 
-    var body: some View {
-        @Bindable var state = state
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 4) {
-                ForEach(AppState.AnalyzeSegment.allCases) { s in
-                    SegmentPill(title: s.rawValue, selected: state.analyzeSegment == s) {
-                        state.analyzeSegment = s
-                        state.selected.removeAll()
-                    }
-                }
-                Spacer()
-            }
-            .padding(3)
-            .background(Theme.surface2)
-            .clipShape(Capsule())
-            .frame(maxWidth: 360, alignment: .leading)
+    private var children: [TreeNode] {
+        (state.treemap?.children ?? []).sorted { $0.byteSize > $1.byteSize }
+    }
 
-            switch state.analyzeSegment {
-            case .overview:
-                OverviewPane(overview: state.overview)
-            case .map:
-                TreemapPane()
-            case .large:
-                ItemTable(items: state.large, selected: $state.selected)
-            case .dupes:
-                DupesPane(groups: state.dupes, selected: $state.selected)
+    private var folderBytes: Int64 {
+        state.treemap?.byteSize ?? children.reduce(0) { $0 + $1.byteSize }
+    }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            analyzeSidebar
+            analyzeMain
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .task {
+            if state.treemap == nil || state.overview == nil {
+                await state.scan()
             }
         }
     }
-}
 
-struct TreemapPane: View {
-    @Environment(AppState.self) private var state
-
-    var body: some View {
-        @Bindable var state = state
-        VStack(alignment: .leading, spacing: 10) {
+    private var analyzeSidebar: some View {
+        VStack(alignment: .leading, spacing: 14) {
             HStack {
-                Button("Home") {
-                    state.treemapPath = NSHomeDirectory()
-                    Task { await state.scan() }
+                Spacer()
+                ZStack {
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [Theme.accent.opacity(0.35), Theme.surface2],
+                                center: .center,
+                                startRadius: 8,
+                                endRadius: 48
+                            )
+                        )
+                        .frame(width: 88, height: 88)
+                    Image(systemName: "globe")
+                        .font(.system(size: 44, weight: .ultraLight))
+                        .foregroundStyle(Theme.ink.opacity(0.7))
+                        .symbolRenderingMode(.hierarchical)
                 }
-                .buttonStyle(SoftButtonStyle())
-                Text(state.treemapPath)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(Theme.muted)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
                 Spacer()
             }
-            if let node = state.treemap {
-                let total = max(node.byteSize, 1)
-                ScrollView {
-                    VStack(spacing: 6) {
-                        ForEach(node.children ?? []) { child in
-                            Button {
-                                if child.isDirectory == true {
-                                    state.treemapPath = child.path
-                                    Task { await state.scan() }
-                                } else {
-                                    state.reveal(child.path)
-                                }
-                            } label: {
-                                HStack(spacing: 10) {
-                                    GeometryReader { geo in
-                                        RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                            .fill(Theme.accent.opacity(0.85))
-                                            .frame(width: max(4, geo.size.width * CGFloat(child.byteSize) / CGFloat(total)))
-                                    }
-                                    .frame(height: 18)
+            .padding(.top, 8)
+
+            Text("\(children.count) items, \(ByteFormat.disk(folderBytes))")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(Theme.ink)
+                .frame(maxWidth: .infinity)
+
+            Text("Current Folder")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(Theme.muted)
+                .padding(.top, 4)
+
+            ScrollView {
+                LazyVStack(spacing: 4) {
+                    ForEach(children) { child in
+                        Button {
+                            state.analyzeSelectedPath = child.path
+                            if child.isDirectory == true {
+                                state.treemapPath = child.path
+                                Task { await state.scan() }
+                            }
+                        } label: {
+                            HStack(spacing: 10) {
+                                Image(systemName: child.isDirectory == true ? "folder.fill" : "doc.fill")
+                                    .font(.system(size: 13))
+                                    .foregroundColor(Theme.accent)
+                                    .frame(width: 18)
+                                VStack(alignment: .leading, spacing: 2) {
                                     Text(child.name)
                                         .font(.system(size: 12, weight: .semibold))
                                         .foregroundColor(Theme.ink)
-                                        .frame(width: 140, alignment: .leading)
                                         .lineLimit(1)
                                     Text(ByteFormat.disk(child.byteSize))
                                         .font(.system(size: 11, weight: .medium, design: .rounded))
                                         .foregroundColor(Theme.muted)
-                                        .frame(width: 72, alignment: .trailing)
                                 }
-                                .padding(.vertical, 4)
+                                Spacer(minLength: 4)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundColor(Theme.muted.opacity(0.7))
                             }
-                            .buttonStyle(.plain)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(state.analyzeSelectedPath == child.path ? Theme.accentSoft : Color.clear)
+                            )
+                        }
+                        .buttonStyle(.plain)
+                        .contextMenu {
+                            Button("Open") { state.reveal(child.path) }
+                            if child.isDirectory == true {
+                                Button("Open in Analyze") {
+                                    state.treemapPath = child.path
+                                    Task { await state.scan() }
+                                }
+                            }
+                            Button("Move to Trash", role: .destructive) {
+                                state.selected = [child.path]
+                                state.confirmTrash = true
+                            }
                         }
                     }
-                    .padding(12)
-                    .background(Theme.surface)
-                    .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
+            }
+
+            Text("Right-click: Open / Trash")
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(Theme.muted)
+                .padding(.bottom, 4)
+        }
+        .padding(14)
+        .frame(width: 240)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Theme.line, lineWidth: 1)
+        )
+    }
+
+    private var analyzeMain: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .center, spacing: 12) {
+                breadcrumbBar
+                Spacer(minLength: 8)
+                diskMeter
+                Button {
+                    Task { await state.scan() }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Theme.muted)
+                        .frame(width: 30, height: 30)
+                        .background(Theme.surface2)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(state.busy)
+                .help("Refresh")
+            }
+
+            if state.treemap == nil {
+                EmptyState(
+                    title: state.busy ? "Scanning disk…" : "Disk map",
+                    systemImage: "square.grid.3x3",
+                    message: "Scan to map folder sizes."
+                )
+            } else if children.isEmpty {
+                EmptyState(title: "Empty folder", systemImage: "folder", message: "No measurable items here.")
             } else {
-                EmptyState(title: "Folder map", systemImage: "square.grid.3x3", message: "Scan a folder to drill into disk usage.")
+                TreemapCanvas(nodes: children, selectedPath: state.analyzeSelectedPath) { node in
+                    state.analyzeSelectedPath = node.path
+                    if node.isDirectory == true {
+                        state.treemapPath = node.path
+                        Task { await state.scan() }
+                    } else {
+                        state.reveal(node.path)
+                    }
+                } onContextReveal: { node in
+                    state.reveal(node.path)
+                } onContextTrash: { node in
+                    state.selected = [node.path]
+                    state.confirmTrash = true
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.surface)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Theme.line, lineWidth: 1)
+        )
+    }
+
+    private var breadcrumbBar: some View {
+        let crumbs = Self.breadcrumbs(for: state.treemapPath)
+        return HStack(spacing: 6) {
+            ForEach(Array(crumbs.enumerated()), id: \.offset) { idx, crumb in
+                if idx > 0 {
+                    Text(">")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Theme.muted.opacity(0.6))
+                }
+                Button(crumb.name) {
+                    state.treemapPath = crumb.path
+                    Task { await state.scan() }
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 12, weight: idx == crumbs.count - 1 ? .bold : .medium))
+                .foregroundColor(idx == crumbs.count - 1 ? Theme.ink : Theme.muted)
+            }
+        }
+        .lineLimit(1)
+    }
+
+    private var diskMeter: some View {
+        let used = state.overview?.usedBytes ?? 0
+        let total = max(state.overview?.totalBytes ?? 1, 1)
+        let folder = folderBytes
+        return HStack(spacing: 8) {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Theme.surface2)
+                    Capsule()
+                        .fill(Theme.ink.opacity(0.55))
+                        .frame(width: max(4, geo.size.width * CGFloat(used) / CGFloat(total)))
+                }
+            }
+            .frame(width: 72, height: 6)
+            Text("Files \(ByteFormat.disk(folder)) · Used \(ByteFormat.disk(used)) / \(ByteFormat.disk(total))")
+                .font(.system(size: 11, weight: .medium, design: .rounded))
+                .foregroundColor(Theme.muted)
+                .lineLimit(1)
+        }
+    }
+
+    private static func breadcrumbs(for path: String) -> [(name: String, path: String)] {
+        let home = NSHomeDirectory()
+        var crumbs: [(String, String)] = []
+        if path == "/" {
+            return [("Whole Disk", "/")]
+        }
+        if path.hasPrefix(home) {
+            crumbs.append(("Home", home))
+            let rest = String(path.dropFirst(home.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+            if !rest.isEmpty {
+                var cur = home
+                for part in rest.split(separator: "/") {
+                    cur = (cur as NSString).appendingPathComponent(String(part))
+                    crumbs.append((String(part), cur))
+                }
+            }
+            return crumbs
+        }
+        crumbs.append(("Whole Disk", "/"))
+        var cur = ""
+        for part in path.split(separator: "/") {
+            cur += "/" + part
+            crumbs.append((String(part), cur))
+        }
+        return crumbs
+    }
+}
+
+struct TreemapCanvas: View {
+    let nodes: [TreeNode]
+    var selectedPath: String?
+    var onOpen: (TreeNode) -> Void
+    var onContextReveal: (TreeNode) -> Void
+    var onContextTrash: (TreeNode) -> Void
+
+    private let palette: [Color] = [
+        Color(red: 0.83, green: 0.72, blue: 0.55),
+        Color(red: 0.72, green: 0.58, blue: 0.42),
+        Color(red: 0.78, green: 0.45, blue: 0.32),
+        Color(red: 0.86, green: 0.70, blue: 0.38),
+        Color(red: 0.55, green: 0.50, blue: 0.44),
+    ]
+
+    var body: some View {
+        GeometryReader { geo in
+            let total = max(nodes.reduce(Int64(0)) { $0 + $1.byteSize }, 1)
+            let primary = nodes.first
+            let rest = Array(nodes.dropFirst().prefix(4))
+            let otherCount = max(0, nodes.count - 1 - rest.count)
+            let otherBytes = nodes.dropFirst().dropFirst(rest.count).reduce(Int64(0)) { $0 + $1.byteSize }
+            let rightW = geo.size.width * 0.38
+            let leftW = geo.size.width - rightW - 8
+
+            HStack(alignment: .top, spacing: 8) {
+                if let primary {
+                    tile(primary, color: palette[0], selected: selectedPath == primary.path)
+                        .frame(width: leftW, height: geo.size.height)
+                }
+                VStack(spacing: 8) {
+                    ForEach(Array(rest.enumerated()), id: \.element.id) { idx, node in
+                        tile(node, color: palette[(idx + 1) % palette.count], selected: selectedPath == node.path)
+                            .frame(maxHeight: .infinity)
+                    }
+                    if otherCount > 0 {
+                        otherTile(count: otherCount, bytes: otherBytes, color: palette[4])
+                            .frame(maxHeight: .infinity)
+                    }
+                }
+                .frame(width: rightW, height: geo.size.height)
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
+            .opacity(total > 0 ? 1 : 0.5)
+        }
+    }
+
+    private func tile(_ node: TreeNode, color: Color, selected: Bool) -> some View {
+        Button {
+            onOpen(node)
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(color.opacity(selected ? 1 : 0.92))
+                VStack(spacing: 8) {
+                    Image(systemName: node.isDirectory == true ? "folder.fill" : "doc.fill")
+                        .font(.system(size: 22, weight: .medium))
+                        .foregroundColor(Theme.ink.opacity(0.75))
+                    Text(node.name)
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(Theme.ink)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.center)
+                    Text(ByteFormat.disk(node.byteSize))
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .foregroundColor(Theme.ink.opacity(0.7))
+                }
+                .padding(12)
+            }
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            Button("Open") { onContextReveal(node) }
+            Button("Move to Trash", role: .destructive) { onContextTrash(node) }
+        }
+    }
+
+    private func otherTile(count: Int, bytes: Int64, color: Color) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(color.opacity(0.85))
+            VStack(spacing: 8) {
+                Image(systemName: "square.grid.2x2.fill")
+                    .font(.system(size: 20))
+                    .foregroundColor(Theme.ink.opacity(0.7))
+                Text("\(count) items")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(Theme.ink)
+                Text(ByteFormat.disk(bytes))
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundColor(Theme.ink.opacity(0.7))
             }
         }
     }
