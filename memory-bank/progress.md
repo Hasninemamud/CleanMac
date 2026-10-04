@@ -5,6 +5,7 @@
 - Go kernel `cmd/cleanmac`: junk, installers, purge, apps, software, analyze (+treemap), optimize, status, whitelist, history, doctor
 - SwiftUI app: Clean · Software · Analyze · Optimize · Status; Settings; Menu Bar HUD
 - Shell: install / launch / build-app / package / selfcheck / test-website
+- Release **2.2.5** — Clean/Optimize page animations + Clean scan JSON decode fix
 - Release **2.2.4** — normal-sized Dock/Launchpad squircle icon
 - Release **2.2.3** — Mole-style Clean, Apps, Optimize, Analyze, Status layouts
 - Release **2.2.2** — black mark on cream full-square app icon
