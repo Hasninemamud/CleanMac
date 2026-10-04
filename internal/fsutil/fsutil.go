@@ -23,10 +23,15 @@ func Exists(p string) bool {
 // DirectorySize walks files under dir. Skips blocked paths and symlink dirs.
 // maxEntries caps work so Clean scans stay responsive on huge cache trees.
 func DirectorySize(dir string, maxEntries int) int64 {
+	return DirectorySizeOpts(dir, maxEntries, safety.Opts{})
+}
+
+// DirectorySizeOpts is DirectorySize with safety options (e.g. AllowApps for .app bundles).
+func DirectorySizeOpts(dir string, maxEntries int, opts safety.Opts) int64 {
 	if maxEntries <= 0 {
 		maxEntries = 12_000
 	}
-	if safety.IsBlocked(dir, safety.Opts{}) {
+	if safety.IsBlocked(dir, opts) {
 		return 0
 	}
 	var total int64
@@ -52,7 +57,7 @@ func DirectorySize(dir string, maxEntries int) int64 {
 			if ent.IsDir() {
 				full := filepath.Join(current, ent.Name())
 				// ponytail: only block-check directories — file-level checks doubled scan time.
-				if safety.IsBlocked(full, safety.Opts{}) {
+				if safety.IsBlocked(full, opts) {
 					continue
 				}
 				stack = append(stack, full)

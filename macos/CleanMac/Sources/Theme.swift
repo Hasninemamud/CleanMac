@@ -29,6 +29,43 @@ enum Theme {
         static let cta = Color.white
         static let ctaInk = Color(red: 0.110, green: 0.145, blue: 0.231)
     }
+
+    /// Unique accent per nav feature.
+    enum Feature {
+        static let clean = Color(red: 0.35, green: 0.55, blue: 0.98)      // blue
+        static let apps = Color(red: 0.10, green: 0.72, blue: 0.65)       // teal
+        static let analyze = Color(red: 0.62, green: 0.42, blue: 0.95)    // purple
+        static let optimize = Color(red: 0.96, green: 0.55, blue: 0.22)   // orange
+        static let status = Color(red: 0.22, green: 0.55, blue: 0.32)     // green
+
+        static func accent(for section: AppState.NavSection) -> Color {
+            switch section {
+            case .clean: return clean
+            case .software: return apps
+            case .analyze: return analyze
+            case .optimize: return optimize
+            case .status: return status
+            }
+        }
+
+        static func pageBG(for section: AppState.NavSection) -> Color {
+            switch section {
+            case .clean: return Mole.bg
+            case .optimize: return Color(red: 0.16, green: 0.11, blue: 0.08) // deep amber
+            case .software, .analyze, .status: return Theme.bg
+            }
+        }
+
+        static func rail(for section: AppState.NavSection) -> Color {
+            switch section {
+            case .clean: return Mole.rail
+            case .optimize: return Color(red: 0.12, green: 0.08, blue: 0.06)
+            case .software: return Color(red: 0.86, green: 0.94, blue: 0.93) // teal wash
+            case .analyze: return Color(red: 0.92, green: 0.88, blue: 0.96) // purple wash
+            case .status: return Theme.rail
+            }
+        }
+    }
 }
 
 struct BrandLogo: View {
@@ -120,6 +157,7 @@ struct SegmentPill: View {
     let title: String
     let selected: Bool
     var dark = false
+    var accent: Color? = nil
     let action: () -> Void
 
     var body: some View {
@@ -127,11 +165,13 @@ struct SegmentPill: View {
             Text(title)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(selected
-                    ? (dark ? Theme.Mole.ctaInk : Theme.ink)
+                    ? (dark ? .white : Theme.ink)
                     : (dark ? Theme.Mole.muted : Theme.muted))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
-                .background(selected ? (dark ? Theme.Mole.cta : Theme.surface) : Color.clear)
+                .background(selected
+                    ? (dark ? (accent ?? Theme.Mole.cta) : (accent?.opacity(0.22) ?? Theme.surface))
+                    : Color.clear)
                 .clipShape(Capsule())
         }
         .buttonStyle(.plain)

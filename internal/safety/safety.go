@@ -66,7 +66,10 @@ func Standardize(p string) string {
 
 func IsAppBundle(path string) bool {
 	s := Standardize(path)
-	return strings.HasPrefix(s, "/Applications/") && (strings.HasSuffix(s, ".app") || strings.Contains(s, ".app/"))
+	if !(strings.HasSuffix(s, ".app") || strings.Contains(s, ".app/")) {
+		return false
+	}
+	return strings.HasPrefix(s, "/Applications/") || strings.Contains(s, "/Applications/")
 }
 
 func IsBlocked(path string, opts Opts) bool {

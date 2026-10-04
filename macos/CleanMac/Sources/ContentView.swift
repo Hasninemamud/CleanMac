@@ -19,9 +19,9 @@ struct ContentView: View {
         }
         .frame(minWidth: 920, idealWidth: 1020, maxWidth: 1280,
                minHeight: 600, idealHeight: 680, maxHeight: 900)
-        .background(moleChrome ? Theme.Mole.bg : Theme.bg)
-        .preferredColorScheme(moleChrome ? .dark : .light)
-        .animation(.easeOut(duration: 0.25), value: moleChrome)
+        .background(Theme.Feature.pageBG(for: state.section))
+        .preferredColorScheme(darkChrome ? .dark : .light)
+        .animation(.easeOut(duration: 0.25), value: state.section)
         .alert("Move to Trash?", isPresented: $state.confirmTrash) {
             Button("Cancel", role: .cancel) {}
             Button("Move to Trash", role: .destructive) {
@@ -51,26 +51,27 @@ struct ContentView: View {
                 .frame(minWidth: 800, minHeight: 600)
         }
         .onAppear {
-            NSApp.appearance = NSAppearance(named: moleChrome ? .darkAqua : .aqua)
+            NSApp.appearance = NSAppearance(named: darkChrome ? .darkAqua : .aqua)
         }
-        .onChange(of: moleChrome) { _, dark in
+        .onChange(of: darkChrome) { _, dark in
             NSApp.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
         }
     }
 
-    private var moleChrome: Bool {
+    private var darkChrome: Bool {
         state.section == .clean || state.section == .optimize
     }
 
     private var topBar: some View {
-        ZStack {
-            moleChrome ? Theme.Mole.rail : Theme.rail
+        let accent = Theme.Feature.accent(for: state.section)
+        return ZStack {
+            Theme.Feature.rail(for: state.section)
             HStack(spacing: 12) {
                 HStack(spacing: 8) {
                     BrandLogo(size: 26)
                     Text("CleanMac")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(moleChrome ? Theme.Mole.ink : Theme.ink)
+                        .foregroundColor(darkChrome ? .white : Theme.ink)
                 }
                 .fixedSize()
 
@@ -81,7 +82,7 @@ struct ContentView: View {
                     Task { await state.loadSettingsData() }
                 } label: {
                     Image(systemName: "gearshape")
-                        .foregroundColor(moleChrome ? Theme.Mole.muted : Theme.muted)
+                        .foregroundColor(darkChrome ? .white.opacity(0.55) : Theme.muted)
                 }
                 .buttonStyle(.plain)
                 .help("Settings")
@@ -89,13 +90,13 @@ struct ContentView: View {
                 Text(state.statusLine)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundColor(state.busy
-                        ? (moleChrome ? Theme.Mole.link : Theme.accent)
-                        : (moleChrome ? Theme.Mole.muted : Theme.muted))
+                        ? accent
+                        : (darkChrome ? .white.opacity(0.55) : Theme.muted))
                     .lineLimit(1)
                     .frame(maxWidth: 140, alignment: .trailing)
 
                 if state.busy {
-                    ProgressView().controlSize(.mini).tint(moleChrome ? .white : Theme.accent)
+                    ProgressView().controlSize(.mini).tint(accent)
                 }
             }
             .padding(.leading, 72)
@@ -103,7 +104,12 @@ struct ContentView: View {
 
             HStack(spacing: 2) {
                 ForEach(AppState.NavSection.allCases) { s in
-                    SegmentPill(title: s.rawValue, selected: state.section == s, dark: moleChrome) {
+                    SegmentPill(
+                        title: s.rawValue,
+                        selected: state.section == s,
+                        dark: darkChrome,
+                        accent: Theme.Feature.accent(for: s)
+                    ) {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
                             state.section = s
                             state.selected.removeAll()
@@ -112,13 +118,13 @@ struct ContentView: View {
                 }
             }
             .padding(3)
-            .background(moleChrome ? Theme.Mole.surface2 : Theme.surface2)
+            .background(darkChrome ? Color.white.opacity(0.10) : Theme.surface2)
             .clipShape(Capsule())
             .animation(.spring(response: 0.35, dampingFraction: 0.86), value: state.section)
         }
         .frame(height: 50)
         .overlay(alignment: .bottom) {
-            Rectangle().fill(moleChrome ? Theme.Mole.line : Theme.line).frame(height: 1)
+            Rectangle().fill(darkChrome ? Color.white.opacity(0.12) : Theme.line).frame(height: 1)
         }
     }
 

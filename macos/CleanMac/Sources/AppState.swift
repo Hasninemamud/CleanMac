@@ -202,7 +202,7 @@ final class AppState {
     /// Prevents stacking Clean/Status scans when UI fires scan twice.
     private var scanning = false
 
-    func scan(quiet: Bool = false) async {
+    func scan(quiet: Bool = false, force: Bool = false) async {
         if scanning { return }
         scanning = true
         if !quiet {
@@ -225,21 +225,29 @@ final class AppState {
             case .software:
                 switch softwareSegment {
                 case .caches, .leftovers, .orphans, .uninstall:
-                    let r = try await CLIExecutor.shared.run(["apps", "--json"], as: AppsResponse.self)
-                    apps = r.apps
-                    orphans = r.orphans
+                    if force || apps.isEmpty {
+                        let r = try await CLIExecutor.shared.run(["apps", "--json"], as: AppsResponse.self)
+                        apps = r.apps
+                        orphans = r.orphans
+                    }
                 case .updates:
-                    updates = try await CLIExecutor.shared.run(["software", "updates", "--json"], as: UpdatesResponse.self).items
+                    if force || updates.isEmpty {
+                        updates = try await CLIExecutor.shared.run(["software", "updates", "--json"], as: UpdatesResponse.self).items
+                    }
                 case .startup:
-                    startupItems = try await CLIExecutor.shared.run(["software", "startup", "--json"], as: StartupResponse.self).items
+                    if force || startupItems.isEmpty {
+                        startupItems = try await CLIExecutor.shared.run(["software", "startup", "--json"], as: StartupResponse.self).items
+                    }
                 }
             case .analyze:
-                // Mole-style Analyze always refreshes disk overview + folder treemap.
-                overview = try await CLIExecutor.shared.run(["analyze", "overview", "--json"], as: OverviewResponse.self)
-                treemap = try await CLIExecutor.shared.run(
+                // Overview + treemap in parallel (was sequential ~4s+).
+                async let overviewTask = CLIExecutor.shared.run(["analyze", "overview", "--json"], as: OverviewResponse.self)
+                async let treemapTask = CLIExecutor.shared.run(
                     ["analyze", "treemap", "--path", treemapPath, "--json"],
                     as: TreeNode.self
                 )
+                overview = try await overviewTask
+                treemap = try await treemapTask
                 analyzeSelectedPath = treemap?.children?.first?.path
                 if analyzeSegment == .large {
                     large = try await CLIExecutor.shared.run(["analyze", "large", "--json"], as: ItemsResponse.self).items
@@ -249,7 +257,9 @@ final class AppState {
                     selected = Set(r.groups.flatMap { Array($0.files.dropFirst()).map(\.path) })
                 }
             case .optimize:
-                optimizeActions = try await CLIExecutor.shared.run(["optimize", "--dry-run", "--json"], as: OptimizeResponse.self).actions
+                if force || optimizeActions.isEmpty {
+                    optimizeActions = try await CLIExecutor.shared.run(["optimize", "--dry-run", "--json"], as: OptimizeResponse.self).actions
+                }
             case .status:
                 metrics = try await CLIExecutor.shared.run(["status", "--json"], as: StatusSnapshot.self)
             }

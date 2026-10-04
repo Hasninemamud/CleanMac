@@ -149,11 +149,11 @@ struct OptimizeView: View {
     private func primaryAction() async {
         if complete {
             withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) { complete = false }
-            await state.scan()
+            await state.scan(force: true)
             return
         }
         if runnableIDs.isEmpty {
-            await state.scan()
+            await state.scan(force: true)
             return
         }
         await state.runOptimize(ids: runnableIDs, dryRun: false)

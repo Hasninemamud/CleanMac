@@ -467,11 +467,11 @@ struct SoftwareView: View {
                         SegmentPill(title: s.rawValue, selected: state.softwareSegment == s) {
                             state.softwareSegment = s
                             state.selected.removeAll()
-                            Task { await state.scan() }
+                            Task { await state.scan() } // uses cache when possible
                         }
                     }
                     Button {
-                        Task { await state.scan() }
+                        Task { await state.scan(force: true) }
                     } label: {
                         Image(systemName: "arrow.clockwise")
                             .font(.system(size: 12, weight: .semibold))
@@ -902,16 +902,16 @@ struct AppsUninstallRow: View {
         )
     }
 
+    private var appBytes: Int64 { app.appBytes ?? app.byteSize }
+
     private var removeBytes: Int64 {
-        let appPart = app.appBytes ?? app.byteSize
-        return alsoRemoveData ? appPart + (app.leftoverBytes ?? 0) : appPart
+        alsoRemoveData ? appBytes + (app.leftoverBytes ?? 0) : appBytes
     }
 
     private var metaLine: String {
         let ver = AppMeta.version(app.path) ?? "—"
-        let size = ByteFormat.string(app.appBytes ?? app.byteSize)
         let used = AppMeta.relative(AppMeta.lastUsed(app.path))
-        return "\(ver) · \(size) · \(used)"
+        return "\(ver) · \(ByteFormat.string(appBytes)) app · \(used)"
     }
 
     var body: some View {
@@ -936,11 +936,15 @@ struct AppsUninstallRow: View {
             Spacer(minLength: 8)
 
             VStack(alignment: .trailing, spacing: 2) {
-                Text("Removes \(ByteFormat.string(removeBytes))")
+                Text(ByteFormat.string(appBytes))
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(Theme.ink)
-                if (app.leftoverBytes ?? 0) > 0 {
-                    Text("\(ByteFormat.string(app.leftoverBytes ?? 0)) more to review")
+                if alsoRemoveData, (app.leftoverBytes ?? 0) > 0 {
+                    Text("+\(ByteFormat.string(app.leftoverBytes ?? 0)) data")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(Theme.Feature.apps)
+                } else if (app.leftoverBytes ?? 0) > 0 {
+                    Text("\(ByteFormat.string(app.leftoverBytes ?? 0)) data")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(Theme.muted)
                 }
@@ -1030,13 +1034,13 @@ struct AnalyzeView: View {
                             state.analyzeSelectedPath = child.path
                             if child.isDirectory == true {
                                 state.treemapPath = child.path
-                                Task { await state.scan() }
+                                Task { await state.scan(force: true) }
                             }
                         } label: {
                             HStack(spacing: 10) {
                                 Image(systemName: child.isDirectory == true ? "folder.fill" : "doc.fill")
                                     .font(.system(size: 13))
-                                    .foregroundColor(Theme.accent)
+                                    .foregroundColor(Theme.Feature.analyze)
                                     .frame(width: 18)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(child.name)
@@ -1065,7 +1069,7 @@ struct AnalyzeView: View {
                             if child.isDirectory == true {
                                 Button("Open in Analyze") {
                                     state.treemapPath = child.path
-                                    Task { await state.scan() }
+                                    Task { await state.scan(force: true) }
                                 }
                             }
                             Button("Move to Trash", role: .destructive) {
@@ -1099,7 +1103,7 @@ struct AnalyzeView: View {
                 Spacer(minLength: 8)
                 diskMeter
                 Button {
-                    Task { await state.scan() }
+                    Task { await state.scan(force: true) }
                 } label: {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 12, weight: .semibold))
@@ -1126,7 +1130,7 @@ struct AnalyzeView: View {
                     state.analyzeSelectedPath = node.path
                     if node.isDirectory == true {
                         state.treemapPath = node.path
-                        Task { await state.scan() }
+                        Task { await state.scan(force: true) }
                     } else {
                         state.reveal(node.path)
                     }
@@ -1159,7 +1163,7 @@ struct AnalyzeView: View {
                 }
                 Button(crumb.name) {
                     state.treemapPath = crumb.path
-                    Task { await state.scan() }
+                    Task { await state.scan(force: true) }
                 }
                 .buttonStyle(.plain)
                 .font(.system(size: 12, weight: idx == crumbs.count - 1 ? .bold : .medium))

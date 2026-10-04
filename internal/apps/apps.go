@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/Hasninemamud/CleanMac/internal/fsutil"
 	"github.com/Hasninemamud/CleanMac/internal/jsonout"
@@ -43,19 +44,23 @@ func normalizeToken(s string) string {
 	return re.ReplaceAllString(s, "")
 }
 
+// sizeOf measures paths including .app bundles (AllowApps).
 func sizeOf(p string) int64 {
 	info, err := os.Lstat(p)
 	if err != nil {
 		return 0
 	}
 	if info.IsDir() {
-		return fsutil.DirectorySize(p, 80_000)
+		// ponytail: 20k entry cap — enough for real .app sizes without multi-second walks.
+		return fsutil.DirectorySizeOpts(p, 20_000, safety.Opts{AllowApps: true})
 	}
 	return info.Size()
 }
 
 func readBundleID(appPath string) string {
-	cmd := exec.Command("/usr/bin/defaults", "read", filepath.Join(appPath, "Contents/Info"), "CFBundleIdentifier")
+	plist := filepath.Join(appPath, "Contents/Info.plist")
+	// plutil handles binary + XML plists; one short process beats defaults+full path quirks.
+	cmd := exec.Command("/usr/bin/plutil", "-extract", "CFBundleIdentifier", "raw", "-o", "-", plist)
 	out, err := cmd.Output()
 	if err != nil {
 		return ""
@@ -66,6 +71,10 @@ func readBundleID(appPath string) string {
 func listInstalled() []installedApp {
 	dirs := []string{"/Applications", filepath.Join(fsutil.HomeDir(), "Applications")}
 	var apps []installedApp
+	var mu sync.Mutex
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 8)
+
 	for _, appsDir := range dirs {
 		if !fsutil.Exists(appsDir) {
 			continue
@@ -80,14 +89,23 @@ func listInstalled() []installedApp {
 			}
 			appPath := filepath.Join(appsDir, ent.Name())
 			name := strings.TrimSuffix(ent.Name(), ".app")
-			bid := readBundleID(appPath)
-			tokens := []string{normalizeToken(name)}
-			if t := normalizeToken(bid); t != "" {
-				tokens = append(tokens, t)
-			}
-			apps = append(apps, installedApp{Path: appPath, Name: name, BundleID: bid, Tokens: tokens})
+			wg.Add(1)
+			go func(appPath, name string) {
+				defer wg.Done()
+				sem <- struct{}{}
+				bid := readBundleID(appPath)
+				<-sem
+				tokens := []string{normalizeToken(name)}
+				if t := normalizeToken(bid); t != "" {
+					tokens = append(tokens, t)
+				}
+				mu.Lock()
+				apps = append(apps, installedApp{Path: appPath, Name: name, BundleID: bid, Tokens: tokens})
+				mu.Unlock()
+			}(appPath, name)
 		}
 	}
+	wg.Wait()
 	return apps
 }
 
@@ -161,7 +179,7 @@ type AppResult struct {
 }
 
 type ScanResult struct {
-	Apps    []AppResult   `json:"apps"`
+	Apps    []AppResult    `json:"apps"`
 	Orphans []jsonout.Item `json:"orphans"`
 }
 
@@ -175,6 +193,13 @@ func Scan() ScanResult {
 	seen := map[string]bool{}
 	home := fsutil.HomeDir()
 
+	type pending struct {
+		full, name, root string
+		isDir            bool
+		matches          []installedApp
+	}
+	var jobs []pending
+
 	for _, root := range leftoverRoots {
 		dir := filepath.Join(home, root)
 		if !fsutil.Exists(dir) {
@@ -185,8 +210,8 @@ func Scan() ScanResult {
 			continue
 		}
 		for _, ent := range entries {
-			info, err := ent.Info()
-			if err != nil || info.Mode()&os.ModeSymlink != 0 {
+			typ := ent.Type()
+			if typ&os.ModeSymlink != 0 {
 				continue
 			}
 			full := filepath.Join(dir, ent.Name())
@@ -199,61 +224,102 @@ func Scan() ScanResult {
 					matches = append(matches, app)
 				}
 			}
-			byteSize := sizeOf(full)
-			if byteSize <= 0 {
-				continue
+			if len(matches) > 1 {
+				continue // ambiguous — skip rather than attach to wrong app
 			}
 			seen[full] = true
-			intended := "review"
-			explanation := "Leftover in " + root
-			if strings.Contains(root, "Caches") {
-				intended = "safe"
-				explanation = "App cache · " + root
-			} else if strings.Contains(root, "Logs") {
-				intended = "safe"
-				explanation = "App logs · " + root
-			}
-			item := jsonout.Item{
-				Path: full, Name: ent.Name(), ByteSize: byteSize,
-				Safety: safety.Classify(full, intended, safety.Opts{}),
-				Kind: "leftover", Root: root, Explanation: explanation,
-				IsDirectory: info.IsDir(),
-				Category:    categoryForRoot(root),
-			}
-			if len(matches) == 1 {
-				byApp[matches[0].Path] = append(byApp[matches[0].Path], item)
-			} else if len(matches) == 0 {
-				item.Orphan = true
-				if strings.Contains(root, "Caches") {
-					item.Explanation = "Orphaned app cache · " + root
-				} else {
-					item.Explanation = "Orphaned leftover · " + root
-				}
-				orphans = append(orphans, item)
-			}
+			jobs = append(jobs, pending{full: full, name: ent.Name(), root: root, isDir: ent.IsDir(), matches: matches})
 		}
 	}
 
-	var results []AppResult
-	for _, app := range installed {
-		leftovers := byApp[app.Path]
-		var leftoverBytes int64
-		for _, l := range leftovers {
-			leftoverBytes += l.ByteSize
-		}
-		appBytes := fsutil.DirectorySize(app.Path, 60_000)
-		results = append(results, AppResult{
-			Path: app.Path, Name: app.Name, BundleID: app.BundleID,
-			ByteSize: appBytes + leftoverBytes, AppBytes: appBytes,
-			LeftoverBytes: leftoverBytes, Leftovers: leftovers,
-			Safety: "review", Explanation: "App + Library leftovers",
-		})
+	type sized struct {
+		item    jsonout.Item
+		appPath string // empty = orphan
 	}
-	sort.Slice(results, func(i, j int) bool {
-		if results[i].LeftoverBytes != results[j].LeftoverBytes {
-			return results[i].LeftoverBytes > results[j].LeftoverBytes
+	sizedCh := make([]sized, len(jobs))
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, 8)
+	for i, job := range jobs {
+		wg.Add(1)
+		go func(i int, job pending) {
+			defer wg.Done()
+			sem <- struct{}{}
+			byteSize := sizeOf(job.full)
+			<-sem
+			if byteSize <= 0 {
+				return
+			}
+			intended := "review"
+			explanation := "Leftover in " + job.root
+			if strings.Contains(job.root, "Caches") {
+				intended = "safe"
+				explanation = "App cache · " + job.root
+			} else if strings.Contains(job.root, "Logs") {
+				intended = "safe"
+				explanation = "App logs · " + job.root
+			}
+			item := jsonout.Item{
+				Path: job.full, Name: job.name, ByteSize: byteSize,
+				Safety: safety.Classify(job.full, intended, safety.Opts{}),
+				Kind: "leftover", Root: job.root, Explanation: explanation,
+				IsDirectory: job.isDir, Category: categoryForRoot(job.root),
+			}
+			if len(job.matches) == 1 {
+				sizedCh[i] = sized{item: item, appPath: job.matches[0].Path}
+			} else {
+				item.Orphan = true
+				if strings.Contains(job.root, "Caches") {
+					item.Explanation = "Orphaned app cache · " + job.root
+				} else {
+					item.Explanation = "Orphaned leftover · " + job.root
+				}
+				sizedCh[i] = sized{item: item}
+			}
+		}(i, job)
+	}
+	wg.Wait()
+
+	for _, s := range sizedCh {
+		if s.item.Path == "" {
+			continue
 		}
-		return results[i].ByteSize > results[j].ByteSize
+		if s.appPath != "" {
+			byApp[s.appPath] = append(byApp[s.appPath], s.item)
+		} else {
+			orphans = append(orphans, s.item)
+		}
+	}
+
+	results := make([]AppResult, len(installed))
+	var appWG sync.WaitGroup
+	for i, app := range installed {
+		appWG.Add(1)
+		go func(i int, app installedApp) {
+			defer appWG.Done()
+			sem <- struct{}{}
+			appBytes := sizeOf(app.Path)
+			<-sem
+			leftovers := byApp[app.Path]
+			var leftoverBytes int64
+			for _, l := range leftovers {
+				leftoverBytes += l.ByteSize
+			}
+			results[i] = AppResult{
+				Path: app.Path, Name: app.Name, BundleID: app.BundleID,
+				// byteSize = app bundle only (original data). Leftovers stay separate.
+				ByteSize: appBytes, AppBytes: appBytes,
+				LeftoverBytes: leftoverBytes, Leftovers: leftovers,
+				Safety: "review", Explanation: "Installed application",
+			}
+		}(i, app)
+	}
+	appWG.Wait()
+
+	sort.Slice(results, func(i, j int) bool {
+		if results[i].AppBytes != results[j].AppBytes {
+			return results[i].AppBytes > results[j].AppBytes
+		}
+		return results[i].Name < results[j].Name
 	})
 	sort.Slice(orphans, func(i, j int) bool { return orphans[i].ByteSize > orphans[j].ByteSize })
 	return ScanResult{Apps: results, Orphans: orphans}
