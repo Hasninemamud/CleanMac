@@ -25,6 +25,7 @@ struct CleanView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.spring(response: 0.45, dampingFraction: 0.86), value: state.cleanPhase)
+        .pageEnter()
         .task {
             withAnimation(.easeOut(duration: 0.55)) { heroReady = true }
             if state.cleanItems.isEmpty, !state.busy {
@@ -43,8 +44,8 @@ struct CleanView: View {
                     .fill(
                         RadialGradient(
                             colors: [
-                                Color.white.opacity(state.busy ? 0.10 : 0.06),
-                                Theme.Mole.bg.opacity(0),
+                                Theme.Feature.clean.opacity(state.busy ? 0.28 : 0.14),
+                                Theme.Feature.pageBG(for: .clean).opacity(0),
                             ],
                             center: .center,
                             startRadius: 20,
@@ -85,14 +86,14 @@ struct CleanView: View {
                     Text("·").foregroundColor(Theme.Mole.muted.opacity(0.5))
                     Button("Scan now") { Task { await state.scan() } }
                         .buttonStyle(.plain)
-                        .foregroundColor(Theme.Mole.link)
+                        .foregroundColor(Theme.Feature.clean)
                 } else {
                     Text("\(state.cleanItems.count) items in \(state.cleanCategories.count) categories")
                         .foregroundColor(Theme.Mole.muted)
                     Text("·").foregroundColor(Theme.Mole.muted.opacity(0.5))
                     Button("Scan again") { Task { await state.scan() } }
                         .buttonStyle(.plain)
-                        .foregroundColor(Theme.Mole.link)
+                        .foregroundColor(Theme.Feature.clean)
                         .disabled(state.busy)
                 }
             }
@@ -427,6 +428,7 @@ struct CleanCategoryRow: View {
 struct SoftwareView: View {
     @Environment(AppState.self) private var state
     @State private var showSearch = false
+    @State private var pulseAccent = false
 
     var body: some View {
         @Bindable var state = state
@@ -446,13 +448,17 @@ struct SoftwareView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.spring(response: 0.35, dampingFraction: 0.88), value: state.softwareSegment)
 
             if state.softwareSegment == .uninstall {
                 uninstallFooter(selected: $state.selected)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .pageEnter()
         .task {
+            withAnimation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true)) { pulseAccent = true }
             if state.apps.isEmpty, !state.busy {
                 await state.scan()
             }
@@ -464,10 +470,16 @@ struct SoftwareView: View {
             HStack(spacing: 8) {
                 HStack(spacing: 2) {
                     ForEach(AppState.appsPrimarySegments) { s in
-                        SegmentPill(title: s.rawValue, selected: state.softwareSegment == s) {
-                            state.softwareSegment = s
-                            state.selected.removeAll()
-                            Task { await state.scan() } // uses cache when possible
+                        SegmentPill(
+                            title: s.rawValue,
+                            selected: state.softwareSegment == s,
+                            accent: Theme.Feature.apps
+                        ) {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) {
+                                state.softwareSegment = s
+                                state.selected.removeAll()
+                            }
+                            Task { await state.scan() }
                         }
                     }
                     Button {
@@ -475,16 +487,24 @@ struct SoftwareView: View {
                     } label: {
                         Image(systemName: "arrow.clockwise")
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundColor(Theme.muted)
+                            .foregroundColor(Theme.Feature.apps)
                             .frame(width: 28, height: 28)
+                            .rotationEffect(.degrees(state.busy ? 360 : 0))
+                            .animation(
+                                state.busy
+                                    ? .linear(duration: 0.8).repeatForever(autoreverses: false)
+                                    : .default,
+                                value: state.busy
+                            )
                     }
                     .buttonStyle(.plain)
                     .disabled(state.busy)
                     .help("Refresh")
                 }
                 .padding(3)
-                .background(Theme.surface2)
+                .background(Theme.Feature.surface2(for: .software))
                 .clipShape(Capsule())
+                .shadow(color: Theme.Feature.apps.opacity(pulseAccent ? 0.18 : 0.06), radius: 10, y: 2)
 
                 Spacer()
 
@@ -549,7 +569,7 @@ struct SoftwareView: View {
                 let total = state.apps.reduce(Int64(0)) { $0 + ($1.appBytes ?? $1.byteSize) }
                 Text("Installed Apps  \(state.sortedApps.count) apps · \(ByteFormat.string(total))")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(Theme.muted)
+                    .foregroundColor(Theme.Feature.apps.opacity(0.85))
             }
         }
         .padding(.bottom, 10)
@@ -566,8 +586,13 @@ struct SoftwareView: View {
             } else {
                 ScrollView {
                     LazyVStack(spacing: 4) {
-                        ForEach(state.sortedApps) { app in
+                        ForEach(Array(state.sortedApps.enumerated()), id: \.element.id) { idx, app in
                             AppsUninstallRow(app: app, selected: selected, alsoRemoveData: state.alsoRemoveData)
+                                .transition(.opacity.combined(with: .offset(y: 8)))
+                                .animation(
+                                    .spring(response: 0.4, dampingFraction: 0.88).delay(Double(idx) * 0.025),
+                                    value: state.sortedApps.count
+                                )
                         }
                     }
                 }
@@ -971,6 +996,7 @@ struct AppsView: View {
 
 struct AnalyzeView: View {
     @Environment(AppState.self) private var state
+    @State private var spin = false
 
     private var children: [TreeNode] {
         (state.treemap?.children ?? []).sorted { $0.byteSize > $1.byteSize }
@@ -986,7 +1012,9 @@ struct AnalyzeView: View {
             analyzeMain
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .pageEnter()
         .task {
+            withAnimation(.linear(duration: 18).repeatForever(autoreverses: false)) { spin = true }
             if state.treemap == nil || state.overview == nil {
                 await state.scan()
             }
@@ -1001,17 +1029,28 @@ struct AnalyzeView: View {
                     Circle()
                         .fill(
                             RadialGradient(
-                                colors: [Theme.accent.opacity(0.35), Theme.surface2],
+                                colors: [
+                                    Theme.Feature.analyze.opacity(state.busy ? 0.45 : 0.28),
+                                    Theme.Feature.surface2(for: .analyze),
+                                ],
                                 center: .center,
                                 startRadius: 8,
                                 endRadius: 48
                             )
                         )
                         .frame(width: 88, height: 88)
+                        .scaleEffect(state.busy ? 1.06 : 1)
+                        .animation(
+                            state.busy
+                                ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true)
+                                : .spring(response: 0.4, dampingFraction: 0.85),
+                            value: state.busy
+                        )
                     Image(systemName: "globe")
                         .font(.system(size: 44, weight: .ultraLight))
-                        .foregroundStyle(Theme.ink.opacity(0.7))
+                        .foregroundStyle(Theme.Feature.analyze.opacity(0.85))
                         .symbolRenderingMode(.hierarchical)
+                        .rotationEffect(.degrees(spin ? 360 : 0))
                 }
                 Spacer()
             }
@@ -1088,11 +1127,11 @@ struct AnalyzeView: View {
         }
         .padding(14)
         .frame(width: 240)
-        .background(Theme.surface)
+        .background(Theme.Feature.surface(for: .analyze))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Theme.line, lineWidth: 1)
+                .stroke(Theme.Feature.analyze.opacity(0.22), lineWidth: 1)
         )
     }
 
@@ -1109,7 +1148,7 @@ struct AnalyzeView: View {
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(Theme.muted)
                         .frame(width: 30, height: 30)
-                        .background(Theme.surface2)
+                        .background(Theme.Feature.surface2(for: .analyze))
                         .clipShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -1140,15 +1179,17 @@ struct AnalyzeView: View {
                     state.selected = [node.path]
                     state.confirmTrash = true
                 }
+                .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                .animation(.spring(response: 0.4, dampingFraction: 0.86), value: state.treemapPath)
             }
         }
         .padding(14)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Theme.surface)
+        .background(Theme.Feature.surface(for: .analyze))
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Theme.line, lineWidth: 1)
+                .stroke(Theme.Feature.analyze.opacity(0.22), lineWidth: 1)
         )
     }
 

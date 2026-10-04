@@ -19,9 +19,12 @@ struct ContentView: View {
         }
         .frame(minWidth: 920, idealWidth: 1020, maxWidth: 1280,
                minHeight: 600, idealHeight: 680, maxHeight: 900)
-        .background(Theme.Feature.pageBG(for: state.section))
-        .preferredColorScheme(darkChrome ? .dark : .light)
-        .animation(.easeOut(duration: 0.25), value: state.section)
+        .background(
+            Theme.Feature.pageBG(for: state.section)
+                .animation(.easeInOut(duration: 0.35), value: state.section)
+        )
+        .preferredColorScheme(Theme.Feature.isDark(state.section) ? .dark : .light)
+        .animation(.spring(response: 0.4, dampingFraction: 0.88), value: state.section)
         .alert("Move to Trash?", isPresented: $state.confirmTrash) {
             Button("Cancel", role: .cancel) {}
             Button("Move to Trash", role: .destructive) {
@@ -51,27 +54,34 @@ struct ContentView: View {
                 .frame(minWidth: 800, minHeight: 600)
         }
         .onAppear {
-            NSApp.appearance = NSAppearance(named: darkChrome ? .darkAqua : .aqua)
+            NSApp.appearance = NSAppearance(named: Theme.Feature.isDark(state.section) ? .darkAqua : .aqua)
         }
-        .onChange(of: darkChrome) { _, dark in
-            NSApp.appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
+        .onChange(of: state.section) { _, section in
+            NSApp.appearance = NSAppearance(named: Theme.Feature.isDark(section) ? .darkAqua : .aqua)
         }
-    }
-
-    private var darkChrome: Bool {
-        state.section == .clean || state.section == .optimize
     }
 
     private var topBar: some View {
         let accent = Theme.Feature.accent(for: state.section)
+        let dark = Theme.Feature.isDark(state.section)
         return ZStack {
             Theme.Feature.rail(for: state.section)
+                .animation(.easeInOut(duration: 0.3), value: state.section)
+            // Accent underline identity per page
+            VStack {
+                Spacer()
+                LinearGradient(
+                    colors: [accent.opacity(0.0), accent.opacity(0.85), accent.opacity(0.0)],
+                    startPoint: .leading, endPoint: .trailing
+                )
+                .frame(height: 2)
+            }
             HStack(spacing: 12) {
                 HStack(spacing: 8) {
                     BrandLogo(size: 26)
                     Text("CleanMac")
                         .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(darkChrome ? .white : Theme.ink)
+                        .foregroundColor(dark ? .white : Theme.ink)
                 }
                 .fixedSize()
 
@@ -82,35 +92,36 @@ struct ContentView: View {
                     Task { await state.loadSettingsData() }
                 } label: {
                     Image(systemName: "gearshape")
-                        .foregroundColor(darkChrome ? .white.opacity(0.55) : Theme.muted)
+                        .foregroundColor(dark ? .white.opacity(0.55) : Theme.muted)
                 }
                 .buttonStyle(.plain)
                 .help("Settings")
 
                 Text(state.statusLine)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(state.busy
-                        ? accent
-                        : (darkChrome ? .white.opacity(0.55) : Theme.muted))
+                    .foregroundColor(state.busy ? accent : (dark ? .white.opacity(0.55) : Theme.muted))
                     .lineLimit(1)
                     .frame(maxWidth: 140, alignment: .trailing)
+                    .contentTransition(.opacity)
 
                 if state.busy {
                     ProgressView().controlSize(.mini).tint(accent)
+                        .transition(.opacity.combined(with: .scale))
                 }
             }
             .padding(.leading, 72)
             .padding(.trailing, 16)
+            .animation(.easeOut(duration: 0.2), value: state.busy)
 
             HStack(spacing: 2) {
                 ForEach(AppState.NavSection.allCases) { s in
                     SegmentPill(
                         title: s.rawValue,
                         selected: state.section == s,
-                        dark: darkChrome,
+                        dark: dark,
                         accent: Theme.Feature.accent(for: s)
                     ) {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) {
+                        withAnimation(.spring(response: 0.38, dampingFraction: 0.84)) {
                             state.section = s
                             state.selected.removeAll()
                         }
@@ -118,13 +129,15 @@ struct ContentView: View {
                 }
             }
             .padding(3)
-            .background(darkChrome ? Color.white.opacity(0.10) : Theme.surface2)
+            .background(dark ? Color.white.opacity(0.10) : Theme.Feature.surface2(for: state.section))
             .clipShape(Capsule())
             .animation(.spring(response: 0.35, dampingFraction: 0.86), value: state.section)
         }
         .frame(height: 50)
         .overlay(alignment: .bottom) {
-            Rectangle().fill(darkChrome ? Color.white.opacity(0.12) : Theme.line).frame(height: 1)
+            Rectangle()
+                .fill(dark ? Color.white.opacity(0.12) : Theme.Feature.accent(for: state.section).opacity(0.25))
+                .frame(height: 1)
         }
     }
 
@@ -174,10 +187,16 @@ struct ContentView: View {
             case .status: StatusView()
             }
         }
+        .id(state.section)
+        .transition(.asymmetric(
+            insertion: .opacity.combined(with: .move(edge: .trailing)).combined(with: .scale(scale: 0.98)),
+            removal: .opacity.combined(with: .move(edge: .leading)).combined(with: .scale(scale: 0.99))
+        ))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.horizontal, selfContainedSection ? 28 : 22)
         .padding(.top, selfContainedSection ? 18 : 0)
         .padding(.bottom, selfContainedSection ? 18 : 14)
+        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: state.section)
     }
 
     private var selfContainedSection: Bool {

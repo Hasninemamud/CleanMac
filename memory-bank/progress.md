@@ -5,6 +5,7 @@
 - Go kernel `cmd/cleanmac`: junk, installers, purge, apps, software, analyze (+treemap), optimize, status, whitelist, history, doctor
 - SwiftUI app: Clean · Software · Analyze · Optimize · Status; Settings; Menu Bar HUD
 - Shell: install / launch / build-app / package / selfcheck / test-website
+- Release **2.2.8** — distinct page colors + animations per nav section
 - Release **2.2.7** — faster Apps/Analyze, real app bundle sizes, feature accent colors
 - Release **2.2.6** — faster Clean scans, Mole dark Clean/Optimize, animated globe, Status fixes
 - Release **2.2.5** — Clean/Optimize page animations + Clean scan JSON decode fix

@@ -30,11 +30,11 @@ enum Theme {
         static let ctaInk = Color(red: 0.110, green: 0.145, blue: 0.231)
     }
 
-    /// Unique accent per nav feature.
+    /// Unique palette per nav feature (full-page color identity).
     enum Feature {
         static let clean = Color(red: 0.35, green: 0.55, blue: 0.98)      // blue
-        static let apps = Color(red: 0.10, green: 0.72, blue: 0.65)       // teal
-        static let analyze = Color(red: 0.62, green: 0.42, blue: 0.95)    // purple
+        static let apps = Color(red: 0.08, green: 0.65, blue: 0.58)       // teal
+        static let analyze = Color(red: 0.55, green: 0.35, blue: 0.90)    // purple
         static let optimize = Color(red: 0.96, green: 0.55, blue: 0.22)   // orange
         static let status = Color(red: 0.22, green: 0.55, blue: 0.32)     // green
 
@@ -50,22 +50,66 @@ enum Theme {
 
         static func pageBG(for section: AppState.NavSection) -> Color {
             switch section {
-            case .clean: return Mole.bg
-            case .optimize: return Color(red: 0.16, green: 0.11, blue: 0.08) // deep amber
-            case .software, .analyze, .status: return Theme.bg
+            case .clean: return Color(red: 0.10, green: 0.14, blue: 0.26)      // navy
+            case .software: return Color(red: 0.90, green: 0.96, blue: 0.95)   // mint
+            case .analyze: return Color(red: 0.94, green: 0.91, blue: 0.98)    // lilac
+            case .optimize: return Color(red: 0.17, green: 0.11, blue: 0.07)   // amber dark
+            case .status: return Color(red: 0.92, green: 0.96, blue: 0.93)     // sage
             }
         }
 
         static func rail(for section: AppState.NavSection) -> Color {
             switch section {
-            case .clean: return Mole.rail
-            case .optimize: return Color(red: 0.12, green: 0.08, blue: 0.06)
-            case .software: return Color(red: 0.86, green: 0.94, blue: 0.93) // teal wash
-            case .analyze: return Color(red: 0.92, green: 0.88, blue: 0.96) // purple wash
-            case .status: return Theme.rail
+            case .clean: return Color(red: 0.08, green: 0.11, blue: 0.20)
+            case .software: return Color(red: 0.78, green: 0.92, blue: 0.90)
+            case .analyze: return Color(red: 0.86, green: 0.80, blue: 0.95)
+            case .optimize: return Color(red: 0.13, green: 0.08, blue: 0.05)
+            case .status: return Color(red: 0.82, green: 0.91, blue: 0.85)
             }
         }
+
+        static func surface(for section: AppState.NavSection) -> Color {
+            switch section {
+            case .clean: return Mole.surface
+            case .software: return Color(red: 0.97, green: 1.0, blue: 0.99)
+            case .analyze: return Color(red: 0.99, green: 0.97, blue: 1.0)
+            case .optimize: return Color(red: 0.22, green: 0.15, blue: 0.10)
+            case .status: return Color(red: 0.98, green: 1.0, blue: 0.98)
+            }
+        }
+
+        static func surface2(for section: AppState.NavSection) -> Color {
+            switch section {
+            case .clean: return Mole.surface2
+            case .software: return Color(red: 0.82, green: 0.93, blue: 0.91)
+            case .analyze: return Color(red: 0.90, green: 0.85, blue: 0.96)
+            case .optimize: return Color(red: 0.28, green: 0.18, blue: 0.12)
+            case .status: return Color(red: 0.86, green: 0.93, blue: 0.88)
+            }
+        }
+
+        static func isDark(_ section: AppState.NavSection) -> Bool {
+            section == .clean || section == .optimize
+        }
     }
+}
+
+/// Soft enter animation for page roots.
+struct PageEnterModifier: ViewModifier {
+    @State private var ready = false
+    func body(content: Content) -> some View {
+        content
+            .opacity(ready ? 1 : 0)
+            .offset(y: ready ? 0 : 16)
+            .scaleEffect(ready ? 1 : 0.985)
+            .onAppear {
+                withAnimation(.spring(response: 0.48, dampingFraction: 0.86)) { ready = true }
+            }
+    }
+}
+
+extension View {
+    func pageEnter() -> some View { modifier(PageEnterModifier()) }
 }
 
 struct BrandLogo: View {

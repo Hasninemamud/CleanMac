@@ -5,7 +5,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DIST="$ROOT/dist"
 APP="$ROOT/macos/CleanMac.app"
-VERSION="${CLEANMAC_VERSION:-2.2.7}"
+VERSION="${CLEANMAC_VERSION:-2.2.8}"
 ARCH="$(uname -m)"
 [[ "$ARCH" == "x86_64" ]] && ARCH="x64"
 DMG_NAME="CleanMac-${VERSION}-${ARCH}.dmg"

@@ -27,8 +27,8 @@ struct OptimizeView: View {
                     .fill(
                         RadialGradient(
                             colors: [
-                                Color.white.opacity(pulse ? 0.12 : 0.06),
-                                Theme.Mole.bg.opacity(0),
+                                Theme.Feature.optimize.opacity(pulse ? 0.28 : 0.14),
+                                Theme.Feature.pageBG(for: .optimize).opacity(0),
                             ],
                             center: .center,
                             startRadius: 30,
@@ -43,15 +43,15 @@ struct OptimizeView: View {
                     .foregroundStyle(
                         LinearGradient(
                             colors: [
-                                Theme.Mole.ink.opacity(complete ? 0.95 : 0.8),
-                                Theme.Mole.muted.opacity(0.55),
+                                Theme.Feature.optimize.opacity(complete ? 0.95 : 0.8),
+                                Color.white.opacity(0.55),
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         )
                     )
                     .symbolRenderingMode(.hierarchical)
-                    .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
+                    .shadow(color: Theme.Feature.optimize.opacity(0.35), radius: 24, y: 10)
                     .offset(y: floatUp ? -8 : 6)
                     .rotationEffect(.degrees(state.busy ? 8 : 0))
                     .scaleEffect(appeared ? 1 : 0.88)
@@ -60,7 +60,7 @@ struct OptimizeView: View {
                 if showCheck {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 36, weight: .semibold))
-                        .foregroundColor(Theme.Mole.link)
+                        .foregroundColor(Theme.Feature.optimize)
                         .offset(x: 70, y: 70)
                         .transition(.scale.combined(with: .opacity))
                 }
@@ -103,9 +103,9 @@ struct OptimizeView: View {
                     .frame(minWidth: 220)
                     .padding(.horizontal, 36)
                     .padding(.vertical, 14)
-                    .background(complete ? Theme.Mole.link.opacity(0.25) : Theme.Mole.cta)
+                    .background(complete ? Theme.Feature.optimize.opacity(0.28) : Theme.Mole.cta)
                     .overlay(
-                        Capsule().stroke(complete ? Theme.Mole.link.opacity(0.5) : Theme.Mole.line, lineWidth: 1)
+                        Capsule().stroke(complete ? Theme.Feature.optimize.opacity(0.55) : Theme.Mole.line, lineWidth: 1)
                     )
                     .clipShape(Capsule())
                     .animation(.easeOut(duration: 0.25), value: complete)
@@ -254,6 +254,7 @@ struct StatusView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .pageEnter()
         .onAppear { Task { await refresh() } }
         .task(id: live) {
             guard live else { return }
@@ -627,11 +628,12 @@ struct StatusView: View {
 
     private var cardBG: some View {
         RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .fill(Theme.surface)
+            .fill(Theme.Feature.surface(for: .status))
             .overlay(
                 RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Theme.line, lineWidth: 1)
+                    .stroke(Theme.Feature.status.opacity(0.18), lineWidth: 1)
             )
+            .shadow(color: Theme.Feature.status.opacity(0.06), radius: 8, y: 2)
     }
 
     // MARK: Helpers
