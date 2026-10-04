@@ -24,7 +24,7 @@ import (
 	"github.com/Hasninemamud/CleanMac/internal/whitelist"
 )
 
-const version = "2.2.6"
+const version = "2.2.7"
 
 func main() {
 	if len(os.Args) < 2 {
