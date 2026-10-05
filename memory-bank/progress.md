@@ -5,6 +5,7 @@
 - Go kernel `cmd/cleanmac`: junk (10-cat taxonomy), installers, purge, apps, software, analyze (+treemap), optimize (expanded catalog), status (process paths), whitelist, history, doctor, **ai detect|scan**
 - SwiftUI app: Clean (+ Moon AI Cleanup) · Software · Analyze · Optimize (results sheet) · Status (pin/sort/force-quit/copy); Settings (cacheRemovalMode, showAICleanup); Menu Bar HUD
 - Shell: install / launch / build-app / package / selfcheck / test-website
+- Release **2.2.11** — Mole feature parity (AI Cleanup, Clean categories, Optimize/Status, Analyze/Apps segments)
 - Release **2.2.10** — Mole planet themes (Earth/Mars/Mercury/Jupiter/Sun) on every page
 - Mole parity push: junk classify + AI paths, optimize tasks, AI page, status actions, settings toggles, richer menu bar
 
