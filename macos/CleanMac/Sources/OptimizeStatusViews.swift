@@ -7,6 +7,7 @@ struct OptimizeView: View {
     @State private var floatUp = false
     @State private var pulse = false
     @State private var showCheck = false
+    @State private var showResults = false
 
     private var runnableIDs: [String] {
         state.optimizeActions.filter { !$0.needsSudo }.map(\.id)
@@ -17,6 +18,9 @@ struct OptimizeView: View {
         if titles.isEmpty { return "Launch speed · System databases · System maintenance" }
         return titles.prefix(4).joined(separator: " · ")
     }
+
+    private var ranCount: Int { state.optimizeActions.filter { $0.status == "ok" }.count }
+    private var skippedCount: Int { state.optimizeActions.filter { $0.status == "skipped" || $0.status == "error" }.count }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -110,7 +114,7 @@ struct OptimizeView: View {
                 .offset(y: appeared ? 0 : 12)
             }
 
-            Text(state.busy ? "Working…" : (complete ? subtitle : "Mercury tends Optimize"))
+            Text(state.busy ? "Working…" : (complete ? "\(ranCount) ran · \(skippedCount) skipped" : "Mercury tends Optimize"))
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(Theme.Mole.muted)
                 .multilineTextAlignment(.center)
@@ -118,6 +122,14 @@ struct OptimizeView: View {
                 .padding(.horizontal, 40)
                 .animation(.easeOut(duration: 0.25), value: state.busy)
                 .opacity(appeared ? 1 : 0)
+
+            if complete {
+                Button("View results") { showResults = true }
+                    .buttonStyle(.plain)
+                    .foregroundColor(Theme.Feature.optimize)
+                    .font(.system(size: 13, weight: .semibold))
+                    .padding(.top, 8)
+            }
 
             Spacer(minLength: 28)
 
@@ -160,6 +172,9 @@ struct OptimizeView: View {
                 showCheck = done
             }
         }
+        .sheet(isPresented: $showResults) {
+            OptimizeResultsSheet(actions: state.optimizeActions)
+        }
     }
 
     private var headline: String {
@@ -187,7 +202,50 @@ struct OptimizeView: View {
         await state.runOptimize(ids: runnableIDs, dryRun: false)
         if state.errorMessage == nil {
             withAnimation(.spring(response: 0.45, dampingFraction: 0.8)) { complete = true }
+            showResults = true
         }
+    }
+}
+
+struct OptimizeResultsSheet: View {
+    let actions: [OptimizeAction]
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("Optimize results").font(.system(size: 16, weight: .bold)).foregroundColor(Theme.ink)
+                Spacer()
+                Button("Done") { dismiss() }.buttonStyle(SoftButtonStyle())
+            }
+            .padding(16)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 8) {
+                    ForEach(actions) { a in
+                        HStack(alignment: .top, spacing: 10) {
+                            Circle()
+                                .fill(a.status == "ok" ? Theme.ok : (a.status == "skipped" ? Theme.warn : Theme.danger))
+                                .frame(width: 8, height: 8)
+                                .padding(.top, 5)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(a.title).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.ink)
+                                Text("\(a.status)\(a.detail.map { " — \($0)" } ?? "")")
+                                    .font(.system(size: 11))
+                                    .foregroundColor(Theme.muted)
+                            }
+                            Spacer()
+                            if a.needsSudo {
+                                Text("sudo").font(.system(size: 10, weight: .bold)).foregroundColor(Theme.warn)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                }
+                .padding(.horizontal, 16)
+            }
+        }
+        .frame(width: 480, height: 420)
+        .background(Theme.Mole.bg)
     }
 }
 
@@ -213,6 +271,10 @@ struct StatusView: View {
     @State private var historyBatt: [Double] = []
     @State private var selectedPID: Int?
     @State private var live = true
+    @State private var procSort: ProcSort = .cpu
+    @State private var procSortAsc = false
+
+    private enum ProcSort: String { case name, mem, cpu, pid }
 
     private let cols = Array(repeating: GridItem(.flexible(), spacing: 12), count: 4)
     /// Fixed trailing widths so header + rows share one grid.
@@ -513,7 +575,7 @@ struct StatusView: View {
     }
 
     private func processTable(_ m: StatusSnapshot) -> some View {
-        let procs = Array((m.processes ?? []).prefix(10))
+        let procs = sortedProcs(m.processes ?? [])
         let maxCPU = max(procs.map(\.cpu).max() ?? 1, 1)
         return VStack(alignment: .leading, spacing: 0) {
             processRow(
@@ -522,7 +584,8 @@ struct StatusView: View {
                 cpu: "% CPU",
                 pwr: "PWR",
                 pid: "PID",
-                isHeader: true
+                isHeader: true,
+                onHeader: { col in toggleSort(col) }
             )
             .padding(.vertical, 10)
             .overlay(alignment: .bottom) {
@@ -540,7 +603,12 @@ struct StatusView: View {
                     cpuBar: min(p.cpu / maxCPU, 1),
                     hot: p.cpu > 40,
                     selected: selectedPID == p.pid,
-                    onQuit: { state.quitProcess(pid: p.pid) }
+                    pinned: state.pinnedProcessNames.contains(p.name),
+                    onQuit: { state.quitProcess(pid: p.pid) },
+                    onForceQuit: { state.forceQuitProcess(pid: p.pid) },
+                    onPin: { state.togglePinProcess(name: p.name) },
+                    onCopy: { state.copyProcessPath(p.path) },
+                    explanation: processExplanation(p)
                 )
                 .padding(.vertical, 8)
                 .background(selectedPID == p.pid
@@ -548,14 +616,56 @@ struct StatusView: View {
                             : (idx % 2 == 0 ? Color.clear : Theme.Feature.surface2(for: .status).opacity(0.45)))
                 .contentShape(Rectangle())
                 .onTapGesture { selectedPID = p.pid }
+                .help(processExplanation(p))
                 .contextMenu {
+                    Button(state.pinnedProcessNames.contains(p.name) ? "Unpin" : "Pin") {
+                        state.togglePinProcess(name: p.name)
+                    }
+                    Button("Copy executable path") { state.copyProcessPath(p.path) }
+                    Divider()
                     Button("Quit", role: .destructive) { state.quitProcess(pid: p.pid) }
+                    Button("Force Quit", role: .destructive) { state.forceQuitProcess(pid: p.pid) }
                 }
             }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 4)
         .background(cardBG)
+    }
+
+    private func sortedProcs(_ raw: [ProcessRow]) -> [ProcessRow] {
+        var list = raw
+        list.sort { a, b in
+            let ap = state.pinnedProcessNames.contains(a.name)
+            let bp = state.pinnedProcessNames.contains(b.name)
+            if ap != bp { return ap && !bp }
+            let cmp: Bool
+            switch procSort {
+            case .name: cmp = a.name.localizedCaseInsensitiveCompare(b.name) == .orderedAscending
+            case .mem: cmp = a.memMB < b.memMB
+            case .cpu: cmp = a.cpu < b.cpu
+            case .pid: cmp = a.pid < b.pid
+            }
+            return procSortAsc ? cmp : !cmp
+        }
+        return Array(list.prefix(16))
+    }
+
+    private func toggleSort(_ col: ProcSort) {
+        if procSort == col {
+            procSortAsc.toggle()
+        } else {
+            procSort = col
+            procSortAsc = col == .name
+        }
+    }
+
+    private func processExplanation(_ p: ProcessRow) -> String {
+        var parts = ["\(p.name) · PID \(p.pid)"]
+        parts.append(String(format: "%.1f%% CPU · %.0f MB", p.cpu, p.memMB))
+        if let path = p.path, !path.isEmpty { parts.append(path) }
+        if state.pinnedProcessNames.contains(p.name) { parts.append("Pinned") }
+        return parts.joined(separator: "\n")
     }
 
     private func processRow(
@@ -568,7 +678,13 @@ struct StatusView: View {
         cpuBar: Double = 0,
         hot: Bool = false,
         selected: Bool = false,
-        onQuit: (() -> Void)? = nil
+        pinned: Bool = false,
+        onQuit: (() -> Void)? = nil,
+        onForceQuit: (() -> Void)? = nil,
+        onPin: (() -> Void)? = nil,
+        onCopy: (() -> Void)? = nil,
+        explanation: String = "",
+        onHeader: ((ProcSort) -> Void)? = nil
     ) -> some View {
         HStack(spacing: 0) {
             HStack(spacing: 8) {
@@ -578,28 +694,42 @@ struct StatusView: View {
                 if isHeader {
                     Color.clear.frame(width: 14, height: 14)
                 } else {
-                    Image(systemName: "app.fill")
+                    Image(systemName: pinned ? "pin.fill" : "app.fill")
                         .font(.system(size: 10))
-                        .foregroundColor(Theme.muted)
+                        .foregroundColor(pinned ? Dash.amber : Theme.muted)
                         .frame(width: 14, height: 14)
                 }
-                Text(name)
-                    .font(isHeader ? .system(size: 10, weight: .bold) : .system(size: 12, weight: .semibold))
-                    .foregroundColor(isHeader ? Theme.muted : Theme.ink)
-                    .lineLimit(1)
+                Group {
+                    if isHeader {
+                        Button(name) { onHeader?(.name) }
+                            .buttonStyle(.plain)
+                    } else {
+                        Text(name)
+                    }
+                }
+                .font(isHeader ? .system(size: 10, weight: .bold) : .system(size: 12, weight: .semibold))
+                .foregroundColor(isHeader ? Theme.muted : Theme.ink)
+                .lineLimit(1)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            Text(mem)
-                .font(.system(size: isHeader ? 10 : 11, weight: isHeader ? .bold : .medium, design: .rounded))
-                .foregroundColor(Theme.muted)
-                .monospacedDigit()
-                .lineLimit(1)
-                .frame(width: ProcCol.mem, alignment: .trailing)
+            Group {
+                if isHeader {
+                    Button(mem) { onHeader?(.mem) }.buttonStyle(.plain)
+                } else {
+                    Text(mem)
+                }
+            }
+            .font(.system(size: isHeader ? 10 : 11, weight: isHeader ? .bold : .medium, design: .rounded))
+            .foregroundColor(Theme.muted)
+            .monospacedDigit()
+            .lineLimit(1)
+            .frame(width: ProcCol.mem, alignment: .trailing)
 
             Group {
                 if isHeader {
-                    Text(cpu)
+                    Button(cpu) { onHeader?(.cpu) }
+                        .buttonStyle(.plain)
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(Theme.muted)
                         .frame(maxWidth: .infinity, alignment: .trailing)
@@ -631,19 +761,29 @@ struct StatusView: View {
                 .lineLimit(1)
                 .frame(width: ProcCol.pwr, alignment: .trailing)
 
-            Text(pid)
-                .font(.system(size: isHeader ? 10 : 11, weight: isHeader ? .bold : .medium, design: .rounded))
-                .foregroundColor(Theme.muted)
-                .monospacedDigit()
-                .lineLimit(1)
-                .frame(width: ProcCol.pid, alignment: .trailing)
+            Group {
+                if isHeader {
+                    Button(pid) { onHeader?(.pid) }.buttonStyle(.plain)
+                } else {
+                    Text(pid)
+                }
+            }
+            .font(.system(size: isHeader ? 10 : 11, weight: isHeader ? .bold : .medium, design: .rounded))
+            .foregroundColor(Theme.muted)
+            .monospacedDigit()
+            .lineLimit(1)
+            .frame(width: ProcCol.pid, alignment: .trailing)
 
             Group {
                 if isHeader {
                     Color.clear.frame(width: ProcCol.action, height: 18)
                 } else {
                     Menu {
+                        Button(pinned ? "Unpin" : "Pin") { onPin?() }
+                        Button("Copy path") { onCopy?() }
+                        Divider()
                         Button("Quit", role: .destructive) { onQuit?() }
+                        Button("Force Quit", role: .destructive) { onForceQuit?() }
                     } label: {
                         Image(systemName: "ellipsis")
                             .font(.system(size: 11, weight: .bold))

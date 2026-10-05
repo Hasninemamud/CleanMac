@@ -15,6 +15,7 @@ import (
 type ProcessRow struct {
 	PID     int     `json:"pid"`
 	Name    string  `json:"name"`
+	Path    string  `json:"path,omitempty"`
 	CPU     float64 `json:"cpu"`
 	MemMB   float64 `json:"memMB"`
 	MemPct  float64 `json:"memPct"`
@@ -393,7 +394,7 @@ func networkKBs() (down, up float64) {
 }
 
 func topProcesses(limit int) []ProcessRow {
-	out, err := exec.Command("ps", "-axo", "pid=,pcpu=,pmem=,rss=,comm=").Output()
+	out, err := exec.Command("ps", "-axo", "pid=,pcpu=,pmem=,rss=,command=").Output()
 	if err != nil {
 		return nil
 	}
@@ -415,7 +416,8 @@ func topProcesses(limit int) []ProcessRow {
 		cpu, _ := strconv.ParseFloat(fields[1], 64)
 		memPct, _ := strconv.ParseFloat(fields[2], 64)
 		rssKB, _ := strconv.ParseInt(fields[3], 10, 64)
-		name := fields[4]
+		exe := fields[4]
+		name := exe
 		if i := strings.LastIndex(name, "/"); i >= 0 {
 			name = name[i+1:]
 		}
@@ -423,7 +425,7 @@ func topProcesses(limit int) []ProcessRow {
 			continue
 		}
 		rows = append(rows, row{
-			ProcessRow: ProcessRow{PID: pid, Name: name, CPU: cpu, MemPct: memPct, MemMB: float64(rssKB) / 1024},
+			ProcessRow: ProcessRow{PID: pid, Name: name, Path: exe, CPU: cpu, MemPct: memPct, MemMB: float64(rssKB) / 1024},
 			rss:        rssKB,
 		})
 	}

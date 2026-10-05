@@ -22,6 +22,10 @@ struct CleanView: View {
                         removal: .opacity.combined(with: .offset(y: 20))
                     ))
             }
+            if state.showAIReview {
+                AICleanupView()
+                    .transition(.opacity.combined(with: .move(edge: .trailing)))
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.spring(response: 0.45, dampingFraction: 0.86), value: state.cleanPhase)
@@ -38,7 +42,33 @@ struct CleanView: View {
 
     private var hero: some View {
         VStack(spacing: 0) {
-            Spacer(minLength: 24)
+            HStack {
+                Spacer()
+                if state.showAICleanup && state.aiHasData {
+                    Button {
+                        state.showAIReview = true
+                        Task { await state.scanAI() }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "moon.fill")
+                                .font(.system(size: 12, weight: .semibold))
+                            Text("AI Cleanup")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .foregroundColor(Theme.Mole.ink.opacity(0.85))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .background(Theme.Mole.surface.opacity(0.9))
+                        .clipShape(Capsule())
+                        .overlay(Capsule().stroke(Theme.Mole.line, lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .help("AI Cleanup & Care")
+                    .padding(.trailing, 16)
+                    .padding(.top, 8)
+                }
+            }
+            Spacer(minLength: 8)
             ZStack {
                 Circle()
                     .fill(
@@ -281,7 +311,7 @@ struct CleanView: View {
             Button {
                 state.confirmTrash = true
             } label: {
-                Text("Permanently clean · \(ByteFormat.disk(state.selectedBytes))")
+                Text("\(state.cacheRemovalMode == "permanent" ? "Permanently clean" : "Move to Trash") · \(ByteFormat.disk(state.selectedBytes))")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundColor(Theme.Mole.ctaInk)
                     .padding(.horizontal, 20)
@@ -295,6 +325,115 @@ struct CleanView: View {
         }
         .padding(.top, 12)
         .padding(.bottom, 4)
+    }
+}
+
+/// Moon — AI Cleanup & Care (on-demand scan).
+struct AICleanupView: View {
+    @Environment(AppState.self) private var state
+
+    private var bands: [(String, String, [ScanItem])] {
+        let order = [("caches", "Caches & old versions"), ("sessions", "Sessions & worktrees"), ("idle", "Idle tools")]
+        return order.compactMap { key, title in
+            let items = state.aiItems.filter { ($0.category ?? "") == key }
+            return items.isEmpty ? nil : (key, title, items)
+        }
+    }
+
+    var body: some View {
+        @Bindable var state = state
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("AI Cleanup & Care")
+                        .font(.system(size: 24, weight: .bold))
+                        .foregroundColor(Theme.Mole.ink)
+                    Text("Caches checked by default · sessions & idle tools stay unchecked")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Theme.Mole.muted)
+                }
+                Spacer()
+                Button {
+                    withAnimation { state.showAIReview = false }
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(Theme.Mole.muted)
+                        .frame(width: 34, height: 34)
+                        .background(Theme.Mole.surface)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.bottom, 14)
+
+            if state.aiItems.isEmpty && !state.busy {
+                VStack(spacing: 12) {
+                    Text("No AI data scanned yet")
+                        .foregroundColor(Theme.Mole.muted)
+                    Button("Scan AI data") { Task { await state.scanAI() } }
+                        .buttonStyle(PrimaryButtonStyle())
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 14) {
+                        ForEach(bands, id: \.0) { key, title, items in
+                            Text(title)
+                                .font(.system(size: 13, weight: .bold))
+                                .foregroundColor(Theme.Mole.ink)
+                            ForEach(items) { item in
+                                HStack(spacing: 10) {
+                                    Button {
+                                        if state.selected.contains(item.path) {
+                                            state.selected.remove(item.path)
+                                        } else {
+                                            state.selected.insert(item.path)
+                                        }
+                                    } label: {
+                                        Image(systemName: state.selected.contains(item.path) ? "checkmark.circle.fill" : "circle")
+                                            .foregroundColor(state.selected.contains(item.path) ? Theme.Mole.link : Theme.Mole.muted)
+                                    }
+                                    .buttonStyle(.plain)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(item.name).font(.system(size: 13, weight: .semibold)).foregroundColor(Theme.Mole.ink)
+                                        Text(item.path).font(.system(size: 10)).foregroundColor(Theme.Mole.muted).lineLimit(1)
+                                    }
+                                    Spacer()
+                                    Text(ByteFormat.disk(item.byteSize))
+                                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                                        .foregroundColor(Theme.Mole.muted)
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+                    }
+                }
+                HStack {
+                    Button("Scan again") { Task { await state.scanAI() } }
+                        .buttonStyle(SoftButtonStyle())
+                        .disabled(state.busy)
+                    Spacer()
+                    Button {
+                        state.confirmTrash = true
+                    } label: {
+                        Text("Clean selected · \(ByteFormat.disk(state.selectedBytes))")
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(Theme.Mole.ctaInk)
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 11)
+                            .background(state.selected.isEmpty ? Theme.Mole.surface2 : Theme.Mole.cta)
+                            .clipShape(Capsule())
+                    }
+                    .buttonStyle(PressableCapsuleStyle())
+                    .disabled(state.selected.isEmpty || state.busy)
+                }
+                .padding(.top, 10)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Theme.Mole.bg)
     }
 }
 
@@ -1007,9 +1146,52 @@ struct AnalyzeView: View {
     }
 
     var body: some View {
-        HStack(spacing: 14) {
-            analyzeSidebar
-            analyzeMain
+        @Bindable var state = state
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 2) {
+                ForEach(AppState.AnalyzeSegment.allCases) { s in
+                    SegmentPill(title: s.rawValue, selected: state.analyzeSegment == s) {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) {
+                            state.analyzeSegment = s
+                            state.selected.removeAll()
+                        }
+                        Task { await state.scan() }
+                    }
+                }
+                Spacer(minLength: 8)
+                Button {
+                    Task { await state.scan(force: true) }
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(Theme.Feature.analyze)
+                        .frame(width: 28, height: 28)
+                }
+                .buttonStyle(.plain)
+                .disabled(state.busy)
+                .help("Refresh")
+            }
+            .padding(3)
+            .background(Color.white.opacity(0.08))
+            .clipShape(Capsule())
+
+            Group {
+                switch state.analyzeSegment {
+                case .overview:
+                    OverviewPane(overview: state.overview)
+                case .map:
+                    HStack(spacing: 14) {
+                        analyzeSidebar
+                        analyzeMain
+                    }
+                case .large:
+                    ItemTable(items: state.large, selected: $state.selected)
+                case .dupes:
+                    DupesPane(groups: state.dupes, selected: $state.selected)
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .animation(.spring(response: 0.35, dampingFraction: 0.88), value: state.analyzeSegment)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .pageEnter()

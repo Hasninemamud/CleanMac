@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/Hasninemamud/CleanMac/internal/ai"
 	"github.com/Hasninemamud/CleanMac/internal/apps"
 	"github.com/Hasninemamud/CleanMac/internal/disk"
 	"github.com/Hasninemamud/CleanMac/internal/doctor"
@@ -52,6 +53,8 @@ func main() {
 		runAnalyze(args)
 	case "optimize":
 		runOptimize(args)
+	case "ai":
+		runAI(args)
 	case "status":
 		runStatus(args)
 	case "whitelist":
@@ -82,6 +85,7 @@ Usage:
   cleanmac software startup --enable|--disable <path> --json
   cleanmac analyze overview|large|dupes|treemap --json
   cleanmac optimize [--dry-run] [--id dns,finder] --json
+  cleanmac ai detect|scan --json
   cleanmac status --json
   cleanmac whitelist list|add|remove --json
   cleanmac history --json
@@ -237,6 +241,28 @@ func runAnalyze(args []string) {
 		outJSON(disk.Treemap(*root, 80))
 	default:
 		jsonout.Fail(fmt.Errorf("unknown analyze subcommand: %s", sub))
+	}
+}
+
+func runAI(args []string) {
+	sub := "detect"
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		sub = args[0]
+	}
+	switch sub {
+	case "detect":
+		outJSON(ai.PresenceReport())
+	case "scan":
+		items := ai.Scan()
+		if items == nil {
+			items = []jsonout.Item{}
+		}
+		outJSON(map[string]any{
+			"items":          items,
+			"defaultChecked": ai.DefaultChecked(items),
+		})
+	default:
+		jsonout.Fail(fmt.Errorf("ai requires detect|scan"))
 	}
 }
 

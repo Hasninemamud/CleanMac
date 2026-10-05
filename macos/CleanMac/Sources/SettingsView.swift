@@ -43,16 +43,35 @@ struct SettingsView: View {
     }
 
     private var generalPane: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("CleanMac keeps deletes in Trash and blocks system paths.")
+        @Bindable var state = state
+        return VStack(alignment: .leading, spacing: 14) {
+            Text("Cleaning")
+                .font(.system(size: 12, weight: .bold))
                 .foregroundColor(Theme.muted)
-            Text("Menu bar HUD shows health and top processes while the app runs.")
-                .foregroundColor(Theme.muted)
+            Picker("Cache removal", selection: $state.cacheRemovalMode) {
+                Text("Move to Trash").tag("trash")
+                Text("Delete permanently").tag("permanent")
+            }
+            .pickerStyle(.radioGroup)
+            .tint(Theme.accent)
+
+            Toggle("Show AI Cleanup entry when AI data is found", isOn: $state.showAICleanup)
+                .tint(Theme.accent)
+                .onChange(of: state.showAICleanup) { _, _ in
+                    Task { await state.detectAI() }
+                }
+
+            Divider().overlay(Theme.line)
+
             Toggle("Keep display awake", isOn: Binding(
                 get: { state.keepAwake },
                 set: { _ in state.toggleKeepAwake() }
             ))
             .tint(Theme.accent)
+
+            Text("Menu bar HUD shows health and top processes while the app runs.")
+                .foregroundColor(Theme.muted)
+                .font(.system(size: 12))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

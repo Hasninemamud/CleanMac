@@ -16,6 +16,17 @@ final class AppState {
     var appsQuery = ""
     var alsoRemoveData = true
     var ignoredUpdateIDs: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "ignoredUpdateIDs") ?? [])
+    /// permanent | trash — how cache/junk deletes are performed.
+    var cacheRemovalMode: String = UserDefaults.standard.string(forKey: "cacheRemovalMode") ?? "trash" {
+        didSet { UserDefaults.standard.set(cacheRemovalMode, forKey: "cacheRemovalMode") }
+    }
+    var showAICleanup: Bool = UserDefaults.standard.object(forKey: "showAICleanup") as? Bool ?? true {
+        didSet { UserDefaults.standard.set(showAICleanup, forKey: "showAICleanup") }
+    }
+    var aiHasData = false
+    var aiItems: [ScanItem] = []
+    var showAIReview = false
+    var pinnedProcessNames: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "pinnedProcessNames") ?? [])
     var statusLine = "Ready"
     var busy = false
     var errorMessage: String?
@@ -87,7 +98,12 @@ final class AppState {
             guard let items = buckets[name] else { return nil }
             return CleanCategory(name: name, items: items.sorted { $0.byteSize > $1.byteSize })
         }
-        .sorted { $0.byteSize > $1.byteSize }
+        .sorted { a, b in
+            let at = a.name.localizedCaseInsensitiveCompare("Trash") == .orderedSame
+            let bt = b.name.localizedCaseInsensitiveCompare("Trash") == .orderedSame
+            if at != bt { return !at }
+            return a.byteSize > b.byteSize
+        }
     }
 
     private static func fallbackCategory(for item: ScanItem) -> String {
@@ -116,8 +132,10 @@ final class AppState {
         var id: String { rawValue }
     }
 
-    /// Primary Apps tabs shown in the Mole-style chrome.
-    static let appsPrimarySegments: [SoftwareSegment] = [.uninstall, .updates, .startup]
+    /// Primary Apps tabs — Mole Uninstall/Updates/Startup plus leftover hygiene.
+    static let appsPrimarySegments: [SoftwareSegment] = [
+        .uninstall, .updates, .startup, .caches, .leftovers, .orphans,
+    ]
 
     enum AppsSort: String, CaseIterable, Identifiable {
         case name = "Name"
@@ -161,6 +179,9 @@ final class AppState {
     }
 
     var selectedBytes: Int64 {
+        if showAIReview {
+            return aiItems.filter { selected.contains($0.path) }.reduce(0) { $0 + $1.byteSize }
+        }
         if section == .software && softwareSegment == .uninstall {
             return uninstallSelectedBytes
         }
@@ -222,6 +243,12 @@ final class AppState {
                 junk = r.junk
                 installers = r.installers
                 purgeItems = r.purge
+                if showAICleanup {
+                    let det = try? await CLIExecutor.shared.run(["ai", "detect", "--json"], as: AIDetectResponse.self)
+                    aiHasData = det?.hasData ?? false
+                } else {
+                    aiHasData = false
+                }
             case .software:
                 switch softwareSegment {
                 case .caches, .leftovers, .orphans, .uninstall:
@@ -328,14 +355,20 @@ final class AppState {
         }
         .filter { !Safety.isBlocked($0, allowApps: allowApps) }
         let collapsed = collapseNested(Array(Set(paths)))
+        let permanent = cacheRemovalMode == "permanent" && !allowApps
         var ok = 0
         var fail = 0
         var bytes: Int64 = 0
         for p in collapsed {
             do {
-                var resulting: NSURL?
                 let size = (try? FileManager.default.attributesOfItem(atPath: p)[.size] as? Int64) ?? 0
-                try FileManager.default.trashItem(at: URL(fileURLWithPath: p), resultingItemURL: &resulting)
+                if permanent {
+                    // Only permanent-delete known cache/safe junk — never apps/uninstall.
+                    try FileManager.default.removeItem(atPath: p)
+                } else {
+                    var resulting: NSURL?
+                    try FileManager.default.trashItem(at: URL(fileURLWithPath: p), resultingItemURL: &resulting)
+                }
                 ok += 1
                 bytes += size
                 selected.remove(p)
@@ -343,10 +376,37 @@ final class AppState {
                 fail += 1
             }
         }
-        statusLine = "Trashed \(ok)" + (fail > 0 ? ", \(fail) failed" : "")
+        let verb = permanent ? "Deleted" : "Trashed"
+        statusLine = "\(verb) \(ok)" + (fail > 0 ? ", \(fail) failed" : "")
         confirmTrash = false
-        appendOpLog(action: "trash", paths: collapsed, bytes: bytes)
-        await scan()
+        appendOpLog(action: permanent ? "delete" : "trash", paths: collapsed, bytes: bytes)
+        if showAIReview {
+            await scanAI()
+        } else {
+            await scan()
+        }
+    }
+
+    func scanAI() async {
+        busy = true
+        defer { busy = false }
+        do {
+            let r = try await CLIExecutor.shared.run(["ai", "scan", "--json"], as: AIScanResponse.self)
+            aiItems = r.items
+            selected = Set(r.defaultChecked ?? [])
+            statusLine = "AI scan done"
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func detectAI() async {
+        guard showAICleanup else {
+            aiHasData = false
+            return
+        }
+        let det = try? await CLIExecutor.shared.run(["ai", "detect", "--json"], as: AIDetectResponse.self)
+        aiHasData = det?.hasData ?? false
     }
 
     private func appendOpLog(action: String, paths: [String], bytes: Int64) {
@@ -492,6 +552,30 @@ final class AppState {
     func quitProcess(pid: Int) {
         kill(pid_t(pid), SIGTERM)
         statusLine = "Sent quit to PID \(pid)"
+    }
+
+    func forceQuitProcess(pid: Int) {
+        kill(pid_t(pid), SIGKILL)
+        statusLine = "Force quit PID \(pid)"
+    }
+
+    func togglePinProcess(name: String) {
+        if pinnedProcessNames.contains(name) {
+            pinnedProcessNames.remove(name)
+        } else {
+            pinnedProcessNames.insert(name)
+        }
+        UserDefaults.standard.set(Array(pinnedProcessNames), forKey: "pinnedProcessNames")
+    }
+
+    func copyProcessPath(_ path: String?) {
+        guard let path, !path.isEmpty else {
+            statusLine = "No executable path"
+            return
+        }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(path, forType: .string)
+        statusLine = "Copied path"
     }
 
     func toggleKeepAwake() {

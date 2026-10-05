@@ -25,9 +25,9 @@ struct ContentView: View {
         )
         .preferredColorScheme(.dark)
         .animation(.spring(response: 0.4, dampingFraction: 0.88), value: state.section)
-        .alert("Move to Trash?", isPresented: $state.confirmTrash) {
+        .alert(state.cacheRemovalMode == "permanent" ? "Delete permanently?" : "Move to Trash?", isPresented: $state.confirmTrash) {
             Button("Cancel", role: .cancel) {}
-            Button("Move to Trash", role: .destructive) {
+            Button(state.cacheRemovalMode == "permanent" ? "Delete" : "Move to Trash", role: .destructive) {
                 Task { await state.trashSelected() }
             }
         } message: {

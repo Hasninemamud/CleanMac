@@ -103,6 +103,16 @@ struct DupeGroup: Identifiable, Codable {
     let files: [ScanItem]
 }
 
+struct AIDetectResponse: Codable {
+    let hasData: Bool
+    var roots: [String]?
+}
+
+struct AIScanResponse: Codable {
+    let items: [ScanItem]
+    var defaultChecked: [String]?
+}
+
 struct OptimizeResponse: Codable {
     let actions: [OptimizeAction]
     let dryRun: Bool
@@ -187,6 +197,7 @@ struct ProcessRow: Identifiable, Codable, Hashable {
     var id: Int { pid }
     let pid: Int
     let name: String
+    var path: String?
     let cpu: Double
     let memMB: Double
     let memPct: Double
