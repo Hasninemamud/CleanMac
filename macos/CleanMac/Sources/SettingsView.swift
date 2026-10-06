@@ -10,7 +10,7 @@ struct SettingsView: View {
         @Bindable var state = state
         VStack(spacing: 0) {
             HStack {
-                Text("Settings").font(.system(size: 16, weight: .bold)).foregroundColor(Theme.ink)
+                Text("Settings").font(Theme.Typeface.title(16)).foregroundColor(Theme.ink)
                 Spacer()
                 Button("Done") { dismiss() }.buttonStyle(SoftButtonStyle())
             }
@@ -34,10 +34,23 @@ struct SettingsView: View {
                 default: generalPane
                 }
             }
+            .id(tab)
+            .transition(.opacity.combined(with: .offset(y: 6)))
+            .animation(Theme.Motion.snappy, value: tab)
             .padding(16)
             Spacer(minLength: 0)
         }
-        .background(Theme.Mole.bg)
+        .background(
+            ZStack {
+                Theme.Mole.bg
+                RadialGradient(
+                    colors: [Theme.accent.opacity(0.10), .clear],
+                    center: UnitPoint(x: 0.9, y: 0.1),
+                    startRadius: 8,
+                    endRadius: 280
+                )
+            }
+        )
         .preferredColorScheme(.dark)
         .task { await state.loadSettingsData() }
     }

@@ -39,6 +39,11 @@ func VolumeUsage(mount string) Volume {
 	if mount == "" {
 		mount = "/"
 	}
+	// System Settings Storage "available" = NSURLVolumeAvailableCapacityForImportantUsageKey
+	// (includes purgeable). Container Free / df Avail is lower (~94 vs ~101 GB).
+	if v, ok := volumeFromImportantUsage(mount); ok {
+		return v
+	}
 	if v, ok := volumeFromDiskutil(mount); ok {
 		return v
 	}
@@ -51,8 +56,55 @@ func VolumeUsage(mount string) Volume {
 	return volumeFromDF(mount)
 }
 
-// volumeFromDiskutil reads APFS container totals (matches System Settings Storage).
-// df's "Used" on / is only the sealed snapshot (~18GB), not container used.
+// volumeFromImportantUsage matches macOS System Settings available space.
+func volumeFromImportantUsage(mount string) (Volume, bool) {
+	path := mount
+	if path == "" || path == "/" {
+		if fsutil.Exists("/System/Volumes/Data") {
+			path = "/System/Volumes/Data"
+		} else {
+			path = "/"
+		}
+	}
+	// AppleScript Foundation bridge — same keys Finder / System Settings use.
+	script := `
+use framework "Foundation"
+set u to current application's NSURL's fileURLWithPath:"` + path + `"
+set totalKey to current application's NSURLVolumeTotalCapacityKey
+set importantKey to current application's NSURLVolumeAvailableCapacityForImportantUsageKey
+set availKey to current application's NSURLVolumeAvailableCapacityKey
+set r to u's resourceValuesForKeys:{totalKey, importantKey, availKey} |error|:(missing value)
+if r is missing value then return ""
+set total to r's objectForKey:totalKey
+set important to r's objectForKey:importantKey
+set avail to r's objectForKey:availKey
+if total is missing value then return ""
+set freeVal to important
+if freeVal is missing value then set freeVal to avail
+if freeVal is missing value then return ""
+return ((total as text) & " " & (freeVal as text))
+`
+	out, err := exec.Command("/usr/bin/osascript", "-e", script).Output()
+	if err != nil {
+		return Volume{}, false
+	}
+	fields := strings.Fields(strings.TrimSpace(string(out)))
+	if len(fields) < 2 {
+		return Volume{}, false
+	}
+	total, err1 := strconv.ParseInt(fields[0], 10, 64)
+	free, err2 := strconv.ParseInt(fields[1], 10, 64)
+	if err1 != nil || err2 != nil || total <= 0 || free < 0 {
+		return Volume{}, false
+	}
+	if free > total {
+		free = total
+	}
+	return Volume{Total: total, Free: free, Used: total - free}, true
+}
+
+// volumeFromDiskutil reads APFS container totals (true unallocated, no purgeable).
+// Prefer volumeFromImportantUsage for UI numbers that match System Settings.
 func volumeFromDiskutil(mount string) (Volume, bool) {
 	out, err := exec.Command("diskutil", "info", mount).Output()
 	if err != nil {

@@ -71,14 +71,20 @@ func Collect() Snapshot {
 	memTotal, memUsed, memFree, memApp, memWired, memComp, memCached := memory()
 	swap := swapUsed()
 	load := loadAvg()
-	cpuPct := cpuPercent(load, runtime.NumCPU())
+	cpuPct := cpuPercentRealtime(load, runtime.NumCPU())
 	pressure := memPressure(memUsed, memTotal, swap)
 	battPct, battState, battW := battery()
+	// Warm the net sampler so the first popover open has a real rate.
+	_, _ = networkKBs()
+	time.Sleep(220 * time.Millisecond)
 	down, up := networkKBs()
 	procs := topProcesses(12)
-	gpu := gpuEstimate(procs)
+	gpu := gpuUtilization()
+	if gpu < 0 {
+		gpu = gpuEstimate(procs)
+	}
 	uptimeSec := uptime()
-	score, label := health(cpuPct, pressure, vol, battPct, battState)
+	score, label := health(cpuPct, pressure, vol, battPct, battState, gpu)
 
 	return Snapshot{
 		Timestamp:     time.Now().Unix(),
@@ -155,9 +161,17 @@ func memory() (total, used, free, app, wired, compressed, cached uint64) {
 	if err != nil {
 		return total, 0, 0, 0, 0, 0, 0
 	}
+	return memoryFromVMStat(string(vm), total)
+}
+
+// memoryFromVMStat matches Activity Monitor / Stats: App = anonymous−purgeable,
+// Memory Used = App + Wired + Compressed. File-backed pages are Cached (not Used).
+func memoryFromVMStat(vm string, total uint64) (tot, used, free, app, wired, compressed, cached uint64) {
+	tot = total
 	pageSize := uint64(4096)
-	var freePages, inactive, speculative, active, wiredPages, compressedPages uint64
-	for _, line := range strings.Split(string(vm), "\n") {
+	var freePages, speculative, wiredPages, compressedPages uint64
+	var anonymous, purgeable, fileBacked, active, inactive uint64
+	for _, line := range strings.Split(vm, "\n") {
 		line = strings.TrimSpace(line)
 		// Header is "Mach Virtual Memory Statistics: (page size of 16384 bytes)".
 		if i := strings.Index(line, "page size of "); i >= 0 {
@@ -189,22 +203,34 @@ func memory() (total, used, free, app, wired, compressed, cached uint64) {
 			wiredPages = n
 		case "Pages occupied by compressor":
 			compressedPages = n
+		case "Pages purgeable":
+			purgeable = n
+		case "Anonymous pages":
+			anonymous = n
+		case "File-backed pages":
+			fileBacked = n
 		}
 	}
-	app = active * pageSize
+	// Activity Monitor App Memory ≈ internal/anonymous − purgeable.
+	if anonymous > 0 {
+		if anonymous > purgeable {
+			app = (anonymous - purgeable) * pageSize
+		}
+	} else {
+		// Older vm_stat without Anonymous pages.
+		app = active * pageSize
+	}
 	wired = wiredPages * pageSize
 	compressed = compressedPages * pageSize
-	cached = inactive * pageSize
+	if fileBacked > 0 {
+		cached = fileBacked * pageSize
+	} else {
+		cached = inactive * pageSize
+	}
 	free = (freePages + speculative) * pageSize
 	used = app + wired + compressed
-	if total > free+cached {
-		alt := total - free - cached
-		if used == 0 || alt > used {
-			used = alt
-		}
-	}
-	if total > 0 && used > total {
-		used = total
+	if tot > 0 && used > tot {
+		used = tot
 	}
 	return
 }
@@ -257,10 +283,9 @@ func memPressure(used, total, swap uint64) float64 {
 	if total == 0 {
 		return 0
 	}
+	// Match Activity Monitor Memory Used % — swap is reported separately.
+	_ = swap
 	p := float64(used) / float64(total)
-	if swap > 0 {
-		p += float64(swap) / float64(total) * 0.35
-	}
 	if p > 1 {
 		p = 1
 	}
@@ -284,6 +309,15 @@ func loadAvg() []float64 {
 }
 
 func cpuPercent(load []float64, cores int) float64 {
+	return cpuPercentRealtime(load, cores)
+}
+
+// cpuPercentRealtime prefers `top` idle samples (matches Activity Monitor),
+// falling back to 1-minute load average / cores.
+func cpuPercentRealtime(load []float64, cores int) float64 {
+	if p, ok := cpuPercentFromTop(); ok {
+		return p
+	}
 	if cores < 1 {
 		cores = 1
 	}
@@ -298,6 +332,51 @@ func cpuPercent(load []float64, cores int) float64 {
 		p = 0
 	}
 	return p
+}
+
+func cpuPercentFromTop() (float64, bool) {
+	// -s 1: second sample is a real 1s interval (Activity Monitor style).
+	// -s 0 yields no usable idle line → we'd fall back to loadavg (wrong).
+	out, err := exec.Command("top", "-l", "2", "-n", "0", "-s", "1").Output()
+	if err != nil {
+		return 0, false
+	}
+	return cpuBusyFromTopOutput(string(out))
+}
+
+// cpuBusyFromTopOutput uses the last "CPU usage: … % idle" line (interval sample).
+func cpuBusyFromTopOutput(s string) (float64, bool) {
+	var idle float64
+	found := false
+	for _, line := range strings.Split(s, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "CPU usage:") {
+			continue
+		}
+		// CPU usage: 11.62% user, 13.95% sys, 74.41% idle
+		if i := strings.Index(line, "% idle"); i > 0 {
+			start := strings.LastIndex(line[:i], " ")
+			if start < 0 {
+				continue
+			}
+			num := strings.TrimSpace(line[start:i])
+			if v, e := strconv.ParseFloat(num, 64); e == nil {
+				idle = v
+				found = true
+			}
+		}
+	}
+	if !found {
+		return 0, false
+	}
+	p := 100 - idle
+	if p < 0 {
+		p = 0
+	}
+	if p > 100 {
+		p = 100
+	}
+	return p, true
 }
 
 func uptime() int64 {
@@ -408,24 +487,17 @@ func topProcesses(limit int) []ProcessRow {
 		if line == "" {
 			continue
 		}
-		fields := strings.Fields(line)
-		if len(fields) < 5 {
+		pid, cpu, memPct, rssKB, cmd, ok := parsePSLine(line)
+		if !ok {
 			continue
 		}
-		pid, _ := strconv.Atoi(fields[0])
-		cpu, _ := strconv.ParseFloat(fields[1], 64)
-		memPct, _ := strconv.ParseFloat(fields[2], 64)
-		rssKB, _ := strconv.ParseInt(fields[3], 10, 64)
-		exe := fields[4]
-		name := exe
-		if i := strings.LastIndex(name, "/"); i >= 0 {
-			name = name[i+1:]
-		}
+		name, path := processNamePath(cmd)
 		if name == "" || name == "ps" {
 			continue
 		}
+		// ps/top %CPU is per-core (can exceed system-wide %); same scale as Activity Monitor.
 		rows = append(rows, row{
-			ProcessRow: ProcessRow{PID: pid, Name: name, Path: exe, CPU: cpu, MemPct: memPct, MemMB: float64(rssKB) / 1024},
+			ProcessRow: ProcessRow{PID: pid, Name: name, Path: path, CPU: cpu, MemPct: memPct, MemMB: float64(rssKB) / 1024},
 			rss:        rssKB,
 		})
 	}
@@ -447,13 +519,106 @@ func topProcesses(limit int) []ProcessRow {
 	return outRows
 }
 
+// parsePSLine splits "pid pcpu pmem rss command…" without breaking paths that contain spaces.
+func parsePSLine(line string) (pid int, cpu, memPct float64, rssKB int64, cmd string, ok bool) {
+	fields := strings.Fields(line)
+	if len(fields) < 5 {
+		return 0, 0, 0, 0, "", false
+	}
+	pid, err1 := strconv.Atoi(fields[0])
+	cpu, err2 := strconv.ParseFloat(fields[1], 64)
+	memPct, err3 := strconv.ParseFloat(fields[2], 64)
+	rssKB, err4 := strconv.ParseInt(fields[3], 10, 64)
+	if err1 != nil || err2 != nil || err3 != nil || err4 != nil {
+		return 0, 0, 0, 0, "", false
+	}
+	// Skip the first four fields in the original line to keep "Google Chrome.app/…".
+	s := strings.TrimSpace(line)
+	for n := 0; n < 4; n++ {
+		sp := strings.IndexAny(s, " \t")
+		if sp < 0 {
+			return 0, 0, 0, 0, "", false
+		}
+		s = strings.TrimLeft(s[sp:], " \t")
+	}
+	if s == "" {
+		return 0, 0, 0, 0, "", false
+	}
+	return pid, cpu, memPct, rssKB, s, true
+}
+
+func processNamePath(cmd string) (name, path string) {
+	cmd = strings.TrimSpace(cmd)
+	if cmd == "" {
+		return "", ""
+	}
+	if i := strings.Index(cmd, ".app/"); i >= 0 {
+		bundle := cmd[:i+4]
+		path = bundle
+		if slash := strings.LastIndex(bundle, "/"); slash >= 0 {
+			name = bundle[slash+1 : len(bundle)-4] // strip .app
+		} else {
+			name = bundle[:len(bundle)-4]
+		}
+		if name == "" {
+			name = bundle
+		}
+		return name, path
+	}
+	fields := strings.Fields(cmd)
+	path = fields[0]
+	name = path
+	if slash := strings.LastIndex(name, "/"); slash >= 0 {
+		name = name[slash+1:]
+	}
+	return name, path
+}
+
+func gpuUtilization() float64 {
+	out, err := exec.Command("ioreg", "-r", "-d", "1", "-w", "0", "-c", "IOAccelerator").Output()
+	if err != nil {
+		return -1
+	}
+	return gpuUtilFromIoreg(string(out))
+}
+
+// gpuUtilFromIoreg picks the max "Device Utilization %" from IOAccelerator trees.
+func gpuUtilFromIoreg(s string) float64 {
+	best := -1.0
+	needle := `"Device Utilization %"=`
+	for {
+		i := strings.Index(s, needle)
+		if i < 0 {
+			break
+		}
+		rest := s[i+len(needle):]
+		end := 0
+		for end < len(rest) && ((rest[end] >= '0' && rest[end] <= '9') || rest[end] == '.') {
+			end++
+		}
+		if end > 0 {
+			if v, e := strconv.ParseFloat(rest[:end], 64); e == nil && v > best {
+				best = v
+			}
+		}
+		s = rest
+	}
+	if best < 0 {
+		return -1
+	}
+	if best > 100 {
+		best = 100
+	}
+	return best
+}
+
 func gpuEstimate(procs []ProcessRow) float64 {
-	// ponytail: no private GPU API — approximate from WindowServer / GPU-ish process share
+	// Last-resort only — WindowServer CPU is not GPU utilization.
 	var sum float64
 	for _, p := range procs {
 		n := strings.ToLower(p.Name)
-		if strings.Contains(n, "windowserver") || strings.Contains(n, "metal") || strings.Contains(n, "gpu") {
-			sum += p.CPU
+		if strings.Contains(n, "windowserver") || strings.Contains(n, "metal") || strings.HasPrefix(n, "gpu") {
+			sum += p.CPU * 0.35
 		}
 	}
 	if sum > 100 {
@@ -472,16 +637,24 @@ func thermalLabel(cpuPct, pressure float64) string {
 	return "Normal"
 }
 
-func health(cpuPct, pressure float64, vol disk.Volume, batt int, battState string) (int, string) {
+func health(cpuPct, pressure float64, vol disk.Volume, batt int, battState string, gpuPct float64) (int, string) {
+	// Mole-ish: plentiful free disk + moderate CPU/GPU stay Good; only heavy
+	// memory pressure (not mid 70s used%) should drag into Fair/Stressed.
 	score := 100.0
-	score -= cpuPct * 0.25
-	score -= pressure * 40
+	score -= clamp01(cpuPct/100) * 20
+	score -= clamp01(gpuPct/100) * 8
+	// Ignore used% until ~65%; ramp to full weight near 100%.
+	score -= clamp01((pressure-0.65)/0.35) * 22
 	if vol.Total > 0 {
-		diskPct := float64(vol.Used) / float64(vol.Total)
-		score -= diskPct * 20
+		freePct := float64(vol.Free) / float64(vol.Total)
+		if freePct < 0.12 {
+			score -= (0.12 - freePct) * 80
+		} else if freePct < 0.20 {
+			score -= (0.20 - freePct) * 25
+		}
 	}
-	if batt > 0 && batt < 20 && battState != "Charging" && battState != "Charged" {
-		score -= 10
+	if batt > 0 && batt < 15 && battState != "Charging" && battState != "Charged" && battState != "AC" {
+		score -= 8
 	}
 	if score < 0 {
 		score = 0
@@ -492,9 +665,9 @@ func health(cpuPct, pressure float64, vol disk.Volume, batt int, battState strin
 	s := int(score + 0.5)
 	label := "Good"
 	switch {
-	case s >= 90:
+	case s >= 88:
 		label = "Excellent"
-	case s >= 75:
+	case s >= 72:
 		label = "Good"
 	case s >= 55:
 		label = "Fair"
@@ -502,4 +675,14 @@ func health(cpuPct, pressure float64, vol disk.Volume, batt int, battState strin
 		label = "Stressed"
 	}
 	return s, label
+}
+
+func clamp01(v float64) float64 {
+	if v < 0 {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
 }

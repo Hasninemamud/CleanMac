@@ -9,5 +9,11 @@
 - AI Cleanup (Moon) on Clean when AI folders detected; `cleanmac ai detect|scan`
 - Optimize catalog expanded (ql/font/sqlite/notifications/savedstate/…); results sheet
 - Status: process pin / force quit / copy path / column sort
-- Menu bar: health + CPU/mem + top processes + Keep Screen On duration
-- App UI theme: warm cream light (`Theme.swift` + site light CSS tokens) — gold accent, forest green success; forced light appearance
+- Menu bar: NSPopover HUD (Health/CPU/GPU/Mem/Disk + top procs + actions); right-click keeps light NSMenu
+- Status metrics: CPU via `top -l 2 -s 1` idle→busy; GPU via ioreg Device Utilization %; health softened (mem pressure only bites >65%)
+- Memory Used = Activity Monitor formula (anonymous−purgeable + wired + compressor); no total−free−inactive override; pressure = used/total (swap separate)
+- Process list: parse full `ps` command so `.app` names with spaces (e.g. Google Chrome) stay intact; %CPU is per-core like AM
+- Disk free: ImportantUsage (System Settings–aligned); keep that
+- App UI: Mole planet themes (Earth/Mars/Mercury/Jupiter/Sun) via `Theme.Feature` + `PlanetCanvas` atmosphere; dark forced appearance; glass panels / motion tokens in `Theme.swift`
+- Status + menu bar HUD bind live `StatusSnapshot` (CPU top, GPU ioreg, AM mem, ImportantUsage disk); meters animate on refresh
+- Local builds: workspace `macos/CleanMac.app` + `/Applications/CleanMac.app` refreshed with modern theme/motion pass

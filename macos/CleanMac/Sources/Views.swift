@@ -32,8 +32,9 @@ struct CleanView: View {
         .pageEnter()
         .task {
             withAnimation(.easeOut(duration: 0.55)) { heroReady = true }
-            if state.cleanItems.isEmpty, !state.busy {
-                await state.scan()
+            if !state.busy {
+                // Recalculate PathSize-backed junk totals on every Clean visit.
+                await state.scan(quiet: !state.cleanItems.isEmpty, force: true)
             }
         }
     }
@@ -98,10 +99,10 @@ struct CleanView: View {
             .padding(.bottom, 28)
 
             Text(state.cleanItems.isEmpty ? "Ready to scan" : "\(ByteFormat.disk(state.cleanTotalBytes)) found")
-                .font(.system(size: 34, weight: .bold, design: .rounded))
+                .font(Theme.Typeface.hero(34))
                 .foregroundColor(Theme.Mole.ink)
                 .contentTransition(.numericText())
-                .animation(.spring(response: 0.4, dampingFraction: 0.85), value: state.cleanTotalBytes)
+                .animation(Theme.Motion.meter, value: state.cleanTotalBytes)
                 .opacity(heroReady ? 1 : 0)
                 .offset(y: heroReady ? 0 : 10)
 
@@ -597,9 +598,9 @@ struct SoftwareView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .pageEnter()
         .task {
-            withAnimation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true)) { pulseAccent = true }
-            if state.apps.isEmpty, !state.busy {
-                await state.scan()
+            withAnimation(Theme.Motion.atmosphere) { pulseAccent = true }
+            if !state.busy {
+                await state.scan(quiet: !state.apps.isEmpty, force: true)
             }
         }
     }

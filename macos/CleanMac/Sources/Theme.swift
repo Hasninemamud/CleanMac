@@ -2,41 +2,75 @@ import SwiftUI
 import AppKit
 
 enum Theme {
-    // Mole carbon base (dark navy chrome — overridden per-page by Feature.pageBG).
-    static let bg = Color(red: 0.118, green: 0.149, blue: 0.235)       // #1E263C Earth default
-    static let rail = Color(red: 0.094, green: 0.118, blue: 0.188)      // #181E30
-    static let surface = Color(red: 0.157, green: 0.188, blue: 0.275)   // #283046
-    static let surface2 = Color(red: 0.196, green: 0.227, blue: 0.314)  // #323A50
+    // Shared chrome — overridden per-page by Feature.pageBG / surface.
+    static let bg = Color(red: 0.110, green: 0.140, blue: 0.220)
+    static let rail = Color(red: 0.086, green: 0.110, blue: 0.176)
+    static let surface = Color(red: 0.155, green: 0.188, blue: 0.275)
+    static let surface2 = Color(red: 0.200, green: 0.235, blue: 0.325)
     static let ink = Color.white
-    static let muted = Color.white.opacity(0.55)
-    static let line = Color.white.opacity(0.12)
-    static let accent = Color(red: 0.357, green: 0.557, blue: 0.937)    // Earth link blue
-    static let accentSoft = Color(red: 0.357, green: 0.557, blue: 0.937).opacity(0.18)
-    static let ok = Color(red: 0.72, green: 0.83, blue: 0.36)           // Status lime
-    static let warn = Color(red: 0.96, green: 0.62, blue: 0.22)
-    static let danger = Color(red: 1.0, green: 0.478, blue: 0.361)      // Mars salmon
+    static let muted = Color.white.opacity(0.64)
+    static let line = Color.white.opacity(0.14)
+    static let accent = Color(red: 0.40, green: 0.60, blue: 0.96)
+    static let accentSoft = Color(red: 0.40, green: 0.60, blue: 0.96).opacity(0.20)
+    static let ok = Color(red: 0.74, green: 0.86, blue: 0.40)
+    static let warn = Color(red: 0.96, green: 0.66, blue: 0.28)
+    static let danger = Color(red: 1.0, green: 0.50, blue: 0.38)
+
+    enum Radius {
+        static let sm: CGFloat = 10
+        static let md: CGFloat = 14
+        static let card: CGFloat = 16
+        static let lg: CGFloat = 20
+    }
+
+    enum Typeface {
+        static func hero(_ size: CGFloat = 32) -> Font {
+            .system(size: size, weight: .bold, design: .rounded)
+        }
+        static func title(_ size: CGFloat = 20) -> Font {
+            .system(size: size, weight: .bold)
+        }
+        static func body(_ size: CGFloat = 13) -> Font {
+            .system(size: size, weight: .medium)
+        }
+        static func caption(_ size: CGFloat = 11) -> Font {
+            .system(size: size, weight: .semibold)
+        }
+        static func micro(_ size: CGFloat = 10) -> Font {
+            .system(size: size, weight: .bold)
+        }
+    }
+
+    enum Motion {
+        static let section = Animation.spring(response: 0.40, dampingFraction: 0.86)
+        static let snappy = Animation.spring(response: 0.32, dampingFraction: 0.84)
+        static let meter = Animation.spring(response: 0.55, dampingFraction: 0.86)
+        static let press = Animation.spring(response: 0.26, dampingFraction: 0.72)
+        /// Slow atmosphere drift — not a busy loop.
+        static let atmosphere = Animation.easeInOut(duration: 4.2).repeatForever(autoreverses: true)
+    }
 
     /// Shared Mole chrome tokens (white CTA, blue link).
     enum Mole {
-        static let bg = Color(red: 0.118, green: 0.149, blue: 0.235)
-        static let rail = Color(red: 0.094, green: 0.118, blue: 0.188)
-        static let surface = Color(red: 0.157, green: 0.188, blue: 0.275)
-        static let surface2 = Color(red: 0.196, green: 0.227, blue: 0.314)
+        static let bg = Color(red: 0.110, green: 0.140, blue: 0.220)
+        static let rail = Color(red: 0.086, green: 0.110, blue: 0.176)
+        static let surface = Color(red: 0.155, green: 0.188, blue: 0.275)
+        static let surface2 = Color(red: 0.200, green: 0.235, blue: 0.325)
         static let ink = Color.white
-        static let muted = Color.white.opacity(0.55)
-        static let line = Color.white.opacity(0.12)
-        static let link = Color(red: 0.45, green: 0.62, blue: 1.0)
+        static let muted = Color.white.opacity(0.64)
+        static let line = Color.white.opacity(0.14)
+        static let link = Color(red: 0.52, green: 0.68, blue: 1.0)
         static let cta = Color.white
-        static let ctaInk = Color(red: 0.110, green: 0.145, blue: 0.231)
+        static let ctaInk = Color(red: 0.100, green: 0.130, blue: 0.210)
     }
 
     /// Planet pages from mole.fit (Earth / Mars / Mercury / Jupiter / Sun).
     enum Feature {
-        static let clean = Color(red: 0.357, green: 0.557, blue: 0.937)     // Earth blue
-        static let apps = Color(red: 1.0, green: 0.478, blue: 0.361)        // Mars salmon #FF7A5C
-        static let analyze = Color(red: 0.769, green: 0.643, blue: 0.518)   // Jupiter tan
-        static let optimize = Color(red: 0.784, green: 0.769, blue: 0.745)  // Mercury grey
-        static let status = Color(red: 0.722, green: 0.831, blue: 0.361)    // Sun lime
+        static let clean = Color(red: 0.40, green: 0.60, blue: 0.96)     // Earth blue
+        static let apps = Color(red: 1.0, green: 0.50, blue: 0.38)        // Mars salmon
+        static let analyze = Color(red: 0.82, green: 0.68, blue: 0.54)    // Jupiter tan
+        static let optimize = Color(red: 0.82, green: 0.80, blue: 0.76)   // Mercury grey
+        static let status = Color(red: 0.74, green: 0.86, blue: 0.40)     // Sun lime
 
         static func accent(for section: AppState.NavSection) -> Color {
             switch section {
@@ -50,49 +84,138 @@ enum Theme {
 
         static func pageBG(for section: AppState.NavSection) -> Color {
             switch section {
-            case .clean: return Color(red: 0.118, green: 0.149, blue: 0.235)    // #1E263C
-            case .software: return Color(red: 0.102, green: 0.078, blue: 0.071)  // #1A1412 Mars
-            case .analyze: return Color(red: 0.239, green: 0.169, blue: 0.122)   // #3D2B1F Jupiter
-            case .optimize: return Color(red: 0.153, green: 0.145, blue: 0.149)  // #272526 Mercury
-            case .status: return Color(red: 0.165, green: 0.157, blue: 0.122)    // #2A281F Sun
+            case .clean: return Color(red: 0.110, green: 0.140, blue: 0.220)    // Earth
+            case .software: return Color(red: 0.095, green: 0.072, blue: 0.066)  // Mars
+            case .analyze: return Color(red: 0.225, green: 0.158, blue: 0.112)   // Jupiter
+            case .optimize: return Color(red: 0.145, green: 0.138, blue: 0.142)  // Mercury
+            case .status: return Color(red: 0.155, green: 0.148, blue: 0.112)    // Sun
             }
         }
 
         static func rail(for section: AppState.NavSection) -> Color {
             switch section {
-            case .clean: return Color(red: 0.094, green: 0.118, blue: 0.188)
-            case .software: return Color(red: 0.082, green: 0.059, blue: 0.055)
-            case .analyze: return Color(red: 0.196, green: 0.133, blue: 0.094)
-            case .optimize: return Color(red: 0.118, green: 0.110, blue: 0.114)
-            case .status: return Color(red: 0.133, green: 0.125, blue: 0.094)
+            case .clean: return Color(red: 0.086, green: 0.110, blue: 0.176)
+            case .software: return Color(red: 0.075, green: 0.052, blue: 0.048)
+            case .analyze: return Color(red: 0.180, green: 0.122, blue: 0.086)
+            case .optimize: return Color(red: 0.110, green: 0.102, blue: 0.106)
+            case .status: return Color(red: 0.122, green: 0.115, blue: 0.086)
             }
         }
 
         static func surface(for section: AppState.NavSection) -> Color {
             switch section {
-            case .clean: return Color(red: 0.145, green: 0.184, blue: 0.275)
-            case .software: return Color(red: 0.145, green: 0.110, blue: 0.106)  // #251C1B
-            case .analyze: return Color(red: 0.290, green: 0.216, blue: 0.165)   // #4A372A
-            case .optimize: return Color(red: 0.196, green: 0.188, blue: 0.184)  // #32302F
-            case .status: return Color(red: 0.216, green: 0.204, blue: 0.161)    // #373429
+            case .clean: return Color(red: 0.150, green: 0.190, blue: 0.285)
+            case .software: return Color(red: 0.155, green: 0.118, blue: 0.112)
+            case .analyze: return Color(red: 0.300, green: 0.225, blue: 0.170)
+            case .optimize: return Color(red: 0.205, green: 0.196, blue: 0.190)
+            case .status: return Color(red: 0.225, green: 0.212, blue: 0.168)
             }
         }
 
         static func surface2(for section: AppState.NavSection) -> Color {
             switch section {
-            case .clean: return Color(red: 0.180, green: 0.220, blue: 0.320)
-            case .software: return Color(red: 0.192, green: 0.145, blue: 0.137)  // #312523
-            case .analyze: return Color(red: 0.349, green: 0.263, blue: 0.200)   // #594333
-            case .optimize: return Color(red: 0.255, green: 0.243, blue: 0.235)  // #413E3C
-            case .status: return Color(red: 0.275, green: 0.259, blue: 0.204)    // #464234
+            case .clean: return Color(red: 0.190, green: 0.232, blue: 0.335)
+            case .software: return Color(red: 0.205, green: 0.155, blue: 0.145)
+            case .analyze: return Color(red: 0.360, green: 0.275, blue: 0.210)
+            case .optimize: return Color(red: 0.265, green: 0.252, blue: 0.242)
+            case .status: return Color(red: 0.285, green: 0.268, blue: 0.212)
             }
         }
 
-        /// All Mole pages are dark planet chrome.
         static func isDark(_ section: AppState.NavSection) -> Bool { true }
 
-        /// CTA label ink — dark charcoal on white pills (matches mole.fit).
         static var ctaInk: Color { Mole.ctaInk }
+
+        /// Elevated panel fill with a light top-edge highlight.
+        static func panelFill(for section: AppState.NavSection) -> LinearGradient {
+            LinearGradient(
+                colors: [
+                    surface2(for: section).opacity(0.95),
+                    surface(for: section),
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+        }
+    }
+}
+
+// MARK: - Atmosphere / panels
+
+/// Layered planet background with a slow accent drift (battery-friendly).
+struct PlanetCanvas: View {
+    let section: AppState.NavSection
+    @State private var drift = false
+
+    var body: some View {
+        let accent = Theme.Feature.accent(for: section)
+        ZStack {
+            Theme.Feature.pageBG(for: section)
+            RadialGradient(
+                colors: [accent.opacity(drift ? 0.16 : 0.07), .clear],
+                center: UnitPoint(x: drift ? 0.88 : 0.78, y: drift ? 0.12 : 0.22),
+                startRadius: 12,
+                endRadius: 420
+            )
+            RadialGradient(
+                colors: [accent.opacity(0.08), .clear],
+                center: UnitPoint(x: 0.12, y: 0.92),
+                startRadius: 8,
+                endRadius: 300
+            )
+            LinearGradient(
+                colors: [Color.white.opacity(0.04), .clear, Color.black.opacity(0.12)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+        }
+        .animation(.easeInOut(duration: 0.35), value: section)
+        .onAppear {
+            withAnimation(Theme.Motion.atmosphere) { drift = true }
+        }
+    }
+}
+
+struct GlassPanelModifier: ViewModifier {
+    let section: AppState.NavSection
+    var radius: CGFloat = Theme.Radius.card
+    var accentStroke: Bool = true
+
+    func body(content: Content) -> some View {
+        let accent = Theme.Feature.accent(for: section)
+        content
+            .background(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .fill(Theme.Feature.panelFill(for: section))
+                    .shadow(color: accent.opacity(0.08), radius: 14, y: 4)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: radius, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                Color.white.opacity(0.16),
+                                accent.opacity(accentStroke ? 0.22 : 0.10),
+                                Color.white.opacity(0.05),
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            )
+    }
+}
+
+extension View {
+    func glassPanel(for section: AppState.NavSection, radius: CGFloat = Theme.Radius.card) -> some View {
+        modifier(GlassPanelModifier(section: section, radius: radius))
+    }
+
+    func pageEnter() -> some View { modifier(PageEnterModifier()) }
+
+    func listAppear(index: Int) -> some View {
+        modifier(ListAppearModifier(index: index))
     }
 }
 
@@ -102,16 +225,28 @@ struct PageEnterModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .opacity(ready ? 1 : 0)
-            .offset(y: ready ? 0 : 16)
-            .scaleEffect(ready ? 1 : 0.985)
+            .offset(y: ready ? 0 : 14)
+            .scaleEffect(ready ? 1 : 0.988)
             .onAppear {
-                withAnimation(.spring(response: 0.48, dampingFraction: 0.86)) { ready = true }
+                withAnimation(.spring(response: 0.46, dampingFraction: 0.88)) { ready = true }
             }
     }
 }
 
-extension View {
-    func pageEnter() -> some View { modifier(PageEnterModifier()) }
+struct ListAppearModifier: ViewModifier {
+    let index: Int
+    @State private var ready = false
+    func body(content: Content) -> some View {
+        content
+            .opacity(ready ? 1 : 0)
+            .offset(y: ready ? 0 : 8)
+            .onAppear {
+                let delay = min(Double(index) * 0.035, 0.28)
+                withAnimation(.spring(response: 0.38, dampingFraction: 0.88).delay(delay)) {
+                    ready = true
+                }
+            }
+    }
 }
 
 struct BrandLogo: View {
@@ -136,6 +271,7 @@ struct BrandLogo: View {
         }
         .frame(width: size, height: size)
         .clipShape(Circle())
+        .shadow(color: Color.white.opacity(0.12), radius: 6, y: 1)
     }
 
     private var bundleLogo: NSImage? {
@@ -158,9 +294,13 @@ struct PrimaryButtonStyle: ButtonStyle {
             .foregroundColor(Theme.Mole.ctaInk)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(Color.white.opacity(disabled ? 0.4 : (configuration.isPressed ? 0.85 : 1)))
+            .background(
+                Color.white.opacity(disabled ? 0.4 : (configuration.isPressed ? 0.82 : 1))
+            )
             .clipShape(Capsule())
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .shadow(color: Color.white.opacity(disabled || configuration.isPressed ? 0 : 0.14), radius: 10, y: 2)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(Theme.Motion.press, value: configuration.isPressed)
     }
 }
 
@@ -171,12 +311,14 @@ struct SoftButtonStyle: ButtonStyle {
             .foregroundColor(Theme.ink)
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .background(Theme.surface)
+            .background(Theme.Mole.surface.opacity(configuration.isPressed ? 0.75 : 1))
             .overlay(
-                Capsule().stroke(Theme.line, lineWidth: 1)
+                Capsule().stroke(Theme.Mole.line, lineWidth: 1)
             )
             .clipShape(Capsule())
-            .opacity(configuration.isPressed ? 0.85 : 1)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .opacity(configuration.isPressed ? 0.9 : 1)
+            .animation(Theme.Motion.press, value: configuration.isPressed)
             .fixedSize()
     }
 }
@@ -188,8 +330,10 @@ struct DangerButtonStyle: ButtonStyle {
             .foregroundColor(.white)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(Theme.danger.opacity(configuration.isPressed ? 0.85 : 1))
+            .background(Theme.danger.opacity(configuration.isPressed ? 0.8 : 1))
             .clipShape(Capsule())
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
+            .animation(Theme.Motion.press, value: configuration.isPressed)
             .fixedSize()
     }
 }
@@ -199,22 +343,40 @@ struct SegmentPill: View {
     let selected: Bool
     var dark = true
     var accent: Color? = nil
+    var namespace: Namespace.ID? = nil
+    var matchID: String = "segmentPill"
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(selected
-                    ? Theme.Mole.ctaInk
-                    : Theme.Mole.muted)
+                .font(.system(size: 12, weight: selected ? .bold : .semibold))
+                .foregroundColor(selected ? Theme.Mole.ctaInk : Theme.Mole.muted)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 7)
-                // Mole: selected tab is always a white pill.
-                .background(selected ? Theme.Mole.cta : Color.clear)
-                .clipShape(Capsule())
+                .background {
+                    if selected {
+                        pillFill
+                    }
+                }
+                .scaleEffect(selected ? 1 : 0.98)
         }
         .buttonStyle(.plain)
+        .animation(Theme.Motion.snappy, value: selected)
+    }
+
+    @ViewBuilder
+    private var pillFill: some View {
+        if let namespace {
+            Capsule()
+                .fill(Theme.Mole.cta)
+                .shadow(color: Color.white.opacity(0.18), radius: 6, y: 1)
+                .matchedGeometryEffect(id: matchID, in: namespace)
+        } else {
+            Capsule()
+                .fill(Theme.Mole.cta)
+                .shadow(color: Color.white.opacity(0.18), radius: 6, y: 1)
+        }
     }
 }
 
@@ -253,6 +415,7 @@ struct CheckMark: View {
             Image(systemName: isOn ? "checkmark.square.fill" : "square")
                 .font(.system(size: 15, weight: .medium))
                 .foregroundColor(disabled ? Theme.muted.opacity(0.4) : (isOn ? accent : Theme.muted))
+                .symbolEffect(.bounce, value: isOn)
         }
         .buttonStyle(.plain)
         .disabled(disabled)
@@ -275,17 +438,24 @@ struct RingMeter: View {
         VStack(spacing: 12) {
             ZStack {
                 Circle()
-                    .stroke(color.opacity(0.12), lineWidth: 9)
+                    .stroke(color.opacity(0.14), lineWidth: 9)
                 Circle()
                     .trim(from: 0, to: clamped)
                     .stroke(
-                        AngularGradient(colors: [color.opacity(0.55), color], center: .center),
+                        AngularGradient(colors: [color.opacity(0.5), color], center: .center),
                         style: StrokeStyle(lineWidth: 9, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
-                    .animation(.spring(response: 0.55, dampingFraction: 0.85), value: clamped)
+                    .animation(Theme.Motion.meter, value: clamped)
                 Circle()
-                    .fill(color.opacity(0.08))
+                    .fill(
+                        RadialGradient(
+                            colors: [color.opacity(0.14), color.opacity(0.04)],
+                            center: .center,
+                            startRadius: 2,
+                            endRadius: size * 0.35
+                        )
+                    )
                     .frame(width: size * 0.62, height: size * 0.62)
                 VStack(spacing: 1) {
                     Text("\(Int((clamped * 100).rounded()))%")
@@ -293,6 +463,7 @@ struct RingMeter: View {
                         .foregroundColor(Theme.ink)
                         .monospacedDigit()
                         .contentTransition(.numericText())
+                        .animation(Theme.Motion.meter, value: clamped)
                     Text(label.uppercased())
                         .font(.system(size: 9, weight: .bold))
                         .tracking(0.8)
@@ -309,15 +480,7 @@ struct RingMeter: View {
         .padding(.vertical, 18)
         .padding(.horizontal, 12)
         .frame(maxWidth: .infinity)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Theme.Feature.surface(for: .status))
-                .shadow(color: color.opacity(0.12), radius: 16, y: 6)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Theme.line, lineWidth: 1)
-        )
+        .glassPanel(for: .status, radius: Theme.Radius.lg)
     }
 }
 
@@ -342,6 +505,7 @@ struct BarMeter: View {
                     .foregroundColor(color)
                     .monospacedDigit()
                     .contentTransition(.numericText())
+                    .animation(Theme.Motion.meter, value: clamped)
             }
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -351,7 +515,7 @@ struct BarMeter: View {
                             LinearGradient(colors: [color.opacity(0.7), color], startPoint: .leading, endPoint: .trailing)
                         )
                         .frame(width: max(6, geo.size.width * clamped))
-                        .animation(.spring(response: 0.5, dampingFraction: 0.85), value: clamped)
+                        .animation(Theme.Motion.meter, value: clamped)
                 }
             }
             .frame(height: 10)
@@ -366,14 +530,7 @@ struct BarMeter: View {
             }
         }
         .padding(16)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Theme.Feature.surface(for: .status))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(Theme.line, lineWidth: 1)
-        )
+        .glassPanel(for: .status, radius: Theme.Radius.md)
     }
 }
 
@@ -421,6 +578,7 @@ struct Sparkline: View {
                         for pt in pts.dropFirst() { p.addLine(to: pt) }
                     }
                     .stroke(color, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+                    .animation(Theme.Motion.meter, value: values.last)
 
                     Circle()
                         .fill(color)

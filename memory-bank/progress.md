@@ -10,6 +10,12 @@
 - Release **2.2.10** — Mole planet themes (Earth/Mars/Mercury/Jupiter/Sun) on every page
 - Mole parity push: junk classify + AI paths, optimize tasks, AI page, status actions, settings toggles, richer menu bar
 
+## In progress / recent
+
+- Menu bar left-click → NSPopover SwiftUI HUD (not flat NSMenu); metrics CPU/GPU/health recalibrated vs Activity Monitor / Mole
+- Status Mem/process-name mismatch fixed: AM memory buckets + ps path parsing (Chrome etc.)
+- Modern theme pass: shared tokens (`PlanetCanvas`, `glassPanel`, Motion/Typeface/Radius), section transitions, meter numericText animations; Clean/Apps/Optimize recalculate on appear; Status live refresh loop kept
+
 ## Next
 
 - Apple Developer signing + notarization for `.app`

@@ -2,18 +2,19 @@ import Foundation
 import AVFoundation
 
 enum PrivacyStatus {
-    static func cameraInUse() -> Bool {
+    /// Permission state for CleanMac itself (not live device capture by other apps).
+    static func cameraAllowed() -> Bool {
         AVCaptureDevice.authorizationStatus(for: .video) == .authorized
     }
 
-    static func microphoneInUse() -> Bool {
+    static func microphoneAllowed() -> Bool {
         AVCaptureDevice.authorizationStatus(for: .audio) == .authorized
     }
 
     static var summary: String {
         var parts: [String] = []
-        if cameraInUse() { parts.append("Camera allowed") }
-        if microphoneInUse() { parts.append("Mic allowed") }
-        return parts.isEmpty ? "No camera/mic permission granted" : parts.joined(separator: " · ")
+        if cameraAllowed() { parts.append("Camera OK") }
+        if microphoneAllowed() { parts.append("Mic OK") }
+        return parts.isEmpty ? "Camera/Mic access off" : parts.joined(separator: " · ")
     }
 }

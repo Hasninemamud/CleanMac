@@ -4,6 +4,7 @@ import IOKit.pwr_mgt
 
 struct ContentView: View {
     @Environment(AppState.self) private var state
+    @Namespace private var navNS
 
     var body: some View {
         @Bindable var state = state
@@ -19,12 +20,15 @@ struct ContentView: View {
         }
         .frame(minWidth: 920, idealWidth: 1020, maxWidth: 1280,
                minHeight: 600, idealHeight: 680, maxHeight: 900)
-        .background(
-            Theme.Feature.pageBG(for: state.section)
-                .animation(.easeInOut(duration: 0.35), value: state.section)
-        )
+        .background(PlanetCanvas(section: state.section))
         .preferredColorScheme(.dark)
-        .animation(.spring(response: 0.4, dampingFraction: 0.88), value: state.section)
+        .animation(Theme.Motion.section, value: state.section)
+        .onChange(of: state.section) { _, section in
+            // Remounted pages also .task; Status always recalculates live metrics.
+            if section == .status {
+                Task { await state.scan(quiet: true) }
+            }
+        }
         .alert(state.cacheRemovalMode == "permanent" ? "Delete permanently?" : "Move to Trash?", isPresented: $state.confirmTrash) {
             Button("Cancel", role: .cancel) {}
             Button(state.cacheRemovalMode == "permanent" ? "Delete" : "Move to Trash", role: .destructive) {
@@ -94,11 +98,16 @@ struct ContentView: View {
                 BrandLogo(size: 22)
                     .padding(.trailing, 4)
                 ForEach(AppState.NavSection.allCases) { s in
-                    SegmentPill(title: s.rawValue, selected: state.section == s) {
+                    SegmentPill(
+                        title: s.rawValue,
+                        selected: state.section == s,
+                        namespace: navNS,
+                        matchID: "mainNav"
+                    ) {
                         if state.section != s {
                             state.stop()
                         }
-                        withAnimation(.spring(response: 0.38, dampingFraction: 0.84)) {
+                        withAnimation(Theme.Motion.snappy) {
                             state.section = s
                             state.selected.removeAll()
                         }
@@ -108,14 +117,23 @@ struct ContentView: View {
             .padding(.leading, 6)
             .padding(.trailing, 3)
             .padding(.vertical, 3)
-            .background(Color.white.opacity(0.10))
-            .clipShape(Capsule())
-            .animation(.spring(response: 0.35, dampingFraction: 0.86), value: state.section)
+            .background(
+                Capsule()
+                    .fill(Color.white.opacity(0.08))
+                    .overlay(Capsule().stroke(Color.white.opacity(0.10), lineWidth: 1))
+            )
+            .animation(Theme.Motion.snappy, value: state.section)
         }
-        .frame(height: 50)
+        .frame(height: 52)
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(Color.white.opacity(0.08))
+                .fill(
+                    LinearGradient(
+                        colors: [accent.opacity(0.35), Color.white.opacity(0.06), Color.clear],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
                 .frame(height: 1)
         }
     }
@@ -124,10 +142,10 @@ struct ContentView: View {
         HStack(alignment: .center, spacing: 16) {
             VStack(alignment: .leading, spacing: 3) {
                 Text(pageTitle)
-                    .font(.system(size: 20, weight: .bold))
+                    .font(Theme.Typeface.title())
                     .foregroundColor(Theme.ink)
                 Text(pageSubtitle)
-                    .font(.system(size: 12, weight: .medium))
+                    .font(Theme.Typeface.body(12))
                     .foregroundColor(Theme.muted)
                     .lineLimit(1)
             }
@@ -168,14 +186,14 @@ struct ContentView: View {
         }
         .id(state.section)
         .transition(.asymmetric(
-            insertion: .opacity.combined(with: .move(edge: .trailing)).combined(with: .scale(scale: 0.98)),
+            insertion: .opacity.combined(with: .move(edge: .trailing)).combined(with: .scale(scale: 0.985)),
             removal: .opacity.combined(with: .move(edge: .leading)).combined(with: .scale(scale: 0.99))
         ))
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.horizontal, selfContainedSection ? 28 : 22)
         .padding(.top, selfContainedSection ? 18 : 0)
         .padding(.bottom, selfContainedSection ? 18 : 14)
-        .animation(.spring(response: 0.42, dampingFraction: 0.86), value: state.section)
+        .animation(Theme.Motion.section, value: state.section)
     }
 
     private var selfContainedSection: Bool {
@@ -205,9 +223,11 @@ struct ContentView: View {
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 10)
-        .background(Theme.Feature.surface(for: state.section))
+        .background(Theme.Feature.panelFill(for: state.section))
         .overlay(alignment: .top) {
-            Rectangle().fill(Theme.line).frame(height: 1)
+            Rectangle()
+                .fill(Theme.Feature.accent(for: state.section).opacity(0.28))
+                .frame(height: 1)
         }
     }
 

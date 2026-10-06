@@ -167,8 +167,8 @@ struct OptimizeView: View {
         .task {
             withAnimation(.spring(response: 0.55, dampingFraction: 0.84)) { appeared = true }
             floatUp = true
-            if state.optimizeActions.isEmpty {
-                await state.scan(force: true)
+            if !state.busy {
+                await state.scan(quiet: !state.optimizeActions.isEmpty, force: true)
             }
         }
         .onChange(of: state.section) { _, section in
@@ -358,6 +358,7 @@ struct StatusView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .pageEnter()
+        .animation(Theme.Motion.meter, value: state.metrics?.timestamp)
         .onAppear { Task { await refresh() } }
         .task(id: live) {
             guard live else { return }
@@ -366,7 +367,12 @@ struct StatusView: View {
                 await refresh()
             }
         }
-        .onChange(of: state.metrics?.timestamp) { _, _ in pushHistory() }
+        .onChange(of: state.section) { _, section in
+            if section == .status { Task { await refresh() } }
+        }
+        .onChange(of: state.metrics?.timestamp) { _, _ in
+            withAnimation(Theme.Motion.meter) { pushHistory() }
+        }
     }
 
     // MARK: Cards
@@ -387,14 +393,17 @@ struct StatusView: View {
             HStack(alignment: .center, spacing: 10) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("\(score)")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
+                        .font(Theme.Typeface.hero(32))
                         .foregroundColor(Theme.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(0.7)
+                        .monospacedDigit()
+                        .contentTransition(.numericText())
                     Text(label)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(tint)
                         .lineLimit(1)
+                        .contentTransition(.opacity)
                     Text(score >= 80 ? "All checks passed" : "Needs attention")
                         .font(.system(size: 11, weight: .medium))
                         .foregroundColor(Theme.muted)
@@ -410,6 +419,8 @@ struct StatusView: View {
                             )
                         )
                         .frame(width: 56, height: 56)
+                        .scaleEffect(score >= 80 ? 1.04 : 1)
+                        .animation(Theme.Motion.atmosphere, value: score)
                     Image(systemName: "sun.max.fill")
                         .font(.system(size: 26, weight: .medium))
                         .foregroundStyle(
@@ -419,6 +430,7 @@ struct StatusView: View {
                             )
                         )
                         .shadow(color: Dash.amber.opacity(0.55), radius: 10)
+                        .symbolEffect(.bounce, value: score)
                 }
             }
             .frame(maxHeight: .infinity, alignment: .center)
@@ -432,7 +444,7 @@ struct StatusView: View {
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 158, maxHeight: 158, alignment: .topLeading)
         .clipped()
-        .background(cardBG)
+        .glassPanel(for: .status, radius: Theme.Radius.md)
     }
 
     private func batteryCard(_ m: StatusSnapshot) -> some View {
@@ -470,9 +482,11 @@ struct StatusView: View {
                             .lineLimit(1)
                     } else {
                         Text("\(m.batteryPct ?? 0)%")
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .font(Theme.Typeface.hero(28))
                             .foregroundColor(Theme.ink)
                             .lineLimit(1)
+                            .monospacedDigit()
+                            .contentTransition(.numericText())
                         Text(battDetail(m))
                             .font(.system(size: 11, weight: .medium))
                             .foregroundColor(Theme.muted)
@@ -481,12 +495,13 @@ struct StatusView: View {
                 }
                 Spacer(minLength: 4)
                 ZStack {
-                    Circle().stroke(Theme.surface2, lineWidth: 6).frame(width: 52, height: 52)
+                    Circle().stroke(Theme.Feature.surface2(for: .status), lineWidth: 6).frame(width: 52, height: 52)
                     Circle()
                         .trim(from: 0, to: ring)
                         .stroke(Dash.green, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                         .rotationEffect(.degrees(-90))
                         .frame(width: 52, height: 52)
+                        .animation(Theme.Motion.meter, value: ring)
                     Image(systemName: "laptopcomputer")
                         .font(.system(size: 15, weight: .medium))
                         .foregroundColor(Theme.ink)
@@ -503,7 +518,7 @@ struct StatusView: View {
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 158, maxHeight: 158, alignment: .topLeading)
         .clipped()
-        .background(cardBG)
+        .glassPanel(for: .status, radius: Theme.Radius.md)
     }
 
     private enum MiniChart { case bars, line, bar }
@@ -537,18 +552,21 @@ struct StatusView: View {
                         .foregroundColor(Theme.ink)
                         .lineLimit(1)
                         .minimumScaleFactor(0.75)
+                        .contentTransition(.numericText())
                     Text(secondary)
                         .font(.system(size: 14, weight: .bold, design: .rounded))
                         .foregroundColor(tint)
                         .lineLimit(1)
+                        .contentTransition(.numericText())
                 }
                 .frame(minHeight: 44, alignment: .topLeading)
             } else {
                 Text(primary)
-                    .font(.system(size: 26, weight: .bold, design: .rounded))
+                    .font(Theme.Typeface.hero(26))
                     .foregroundColor(Theme.ink)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
+                    .contentTransition(.numericText())
                     .frame(minHeight: 44, alignment: .topLeading)
             }
 
@@ -562,10 +580,11 @@ struct StatusView: View {
                 case .bar:
                     GeometryReader { geo in
                         ZStack(alignment: .leading) {
-                            Capsule().fill(Theme.surface2)
+                            Capsule().fill(Theme.Feature.surface2(for: .status))
                             Capsule()
                                 .fill(LinearGradient(colors: [tint.opacity(0.7), tint], startPoint: .leading, endPoint: .trailing))
                                 .frame(width: max(6, geo.size.width * CGFloat(history.last ?? 0.3)))
+                                .animation(Theme.Motion.meter, value: history.last)
                         }
                     }
                 }
@@ -579,11 +598,13 @@ struct StatusView: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
                 .truncationMode(.middle)
+                .contentTransition(.opacity)
         }
         .padding(14)
         .frame(maxWidth: .infinity, minHeight: 158, maxHeight: 158, alignment: .topLeading)
         .clipped()
-        .background(cardBG)
+        .glassPanel(for: .status, radius: Theme.Radius.md)
+        .listAppear(index: title.hashValue & 7)
     }
 
     private func processTable(_ m: StatusSnapshot) -> some View {
@@ -642,7 +663,7 @@ struct StatusView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 4)
-        .background(cardBG)
+        .glassPanel(for: .status, radius: Theme.Radius.md)
     }
 
     private func sortedProcs(_ raw: [ProcessRow]) -> [ProcessRow] {
@@ -753,12 +774,13 @@ struct StatusView: View {
                             .monospacedDigit()
                             .frame(width: 28, alignment: .trailing)
                         Capsule()
-                            .fill(Theme.surface2)
+                            .fill(Theme.Feature.surface2(for: .status))
                             .frame(width: 44, height: 5)
                             .overlay(alignment: .leading) {
                                 Capsule()
                                     .fill(hot ? Dash.amber : Theme.muted.opacity(0.45))
                                     .frame(width: max(2, 44 * cpuBar), height: 5)
+                                    .animation(Theme.Motion.meter, value: cpuBar)
                             }
                     }
                     .frame(maxWidth: .infinity, alignment: .trailing)
@@ -815,21 +837,12 @@ struct StatusView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    private var cardBG: some View {
-        RoundedRectangle(cornerRadius: 14, style: .continuous)
-            .fill(Theme.Feature.surface(for: .status))
-            .overlay(
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .stroke(Theme.Feature.status.opacity(0.18), lineWidth: 1)
-            )
-            .shadow(color: Theme.Feature.status.opacity(0.06), radius: 8, y: 2)
-    }
-
     // MARK: Helpers
 
     private func refresh() async {
+        // Always re-run status JSON (CPU top / GPU ioreg / AM mem / ImportantUsage disk).
         await state.scan(quiet: true)
-        pushHistory()
+        withAnimation(Theme.Motion.meter) { pushHistory() }
     }
 
     private func pushHistory() {
