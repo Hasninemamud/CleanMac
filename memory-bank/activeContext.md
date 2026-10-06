@@ -3,7 +3,7 @@
 - **Stack:** Go CLI + shell + SwiftUI only (Electron removed)
 - Nav: Clean · Software · Analyze · Optimize · Status (+ Settings, Menu Bar)
 - Trash-only deletes in Swift by default; Settings can switch caches to permanent delete
-- Version **2.2.11** — Mole feature parity (AI Cleanup, Clean categories, Optimize/Status)
+- Version **2.2.12** — Analyze/Optimize scan hang fixed (timed sizing)
 - Disk Status uses APFS **container** totals + **decimal GB**
 - Whitelist + operations log; junk uses Mole 10-category taxonomy (+ Trash last)
 - AI Cleanup (Moon) on Clean when AI folders detected; `cleanmac ai detect|scan`

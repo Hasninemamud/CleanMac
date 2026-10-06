@@ -6,7 +6,7 @@ export PATH="/opt/homebrew/bin:/usr/bin:/bin:$PATH"
 APP="$ROOT/macos/CleanMac.app"
 SRC="$ROOT/macos/CleanMac"
 BIN="$ROOT/bin/cleanmac"
-VERSION="${CLEANMAC_VERSION:-2.2.11}"
+VERSION="${CLEANMAC_VERSION:-2.2.12}"
 
 [[ -x "$BIN" ]] || make -C "$ROOT" build
 
