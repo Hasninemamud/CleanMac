@@ -221,6 +221,12 @@ func runAnalyze(args []string) {
 	sub := args[0]
 	rest := args[1:]
 	switch sub {
+	case "volume":
+		vol := disk.VolumeUsage(fsutil.HomeDir())
+		outJSON(disk.Overview{
+			TotalBytes: vol.Total, FreeBytes: vol.Free, UsedBytes: vol.Used,
+			CategoryBytes: map[string]int64{}, TopFolders: nil,
+		})
 	case "overview":
 		outJSON(disk.ScanOverview(progress()))
 	case "large":

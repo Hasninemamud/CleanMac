@@ -220,11 +220,20 @@ final class AppState {
         }
     }
 
-    /// Prevents stacking Clean/Status scans when UI fires scan twice.
+    /// Prevents stacking scans; bumped on cancel so stale work cannot clear a newer scan's busy flag.
     private var scanning = false
+    private var scanToken = 0
 
     func scan(quiet: Bool = false, force: Bool = false) async {
-        if scanning { return }
+        if scanning {
+            // Cancel the in-flight scan so Analyze cannot block Optimize forever.
+            CLIExecutor.shared.cancel()
+            // Brief yield so the cancelled process can exit and clear `scanning`.
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            if scanning { return }
+        }
+        scanToken &+= 1
+        let token = scanToken
         scanning = true
         if !quiet {
             busy = true
@@ -232,19 +241,23 @@ final class AppState {
             statusLine = "Scanning…"
         }
         defer {
-            scanning = false
-            if !quiet { busy = false }
+            if token == scanToken {
+                scanning = false
+                if !quiet { busy = false }
+            }
         }
         do {
             switch section {
             case .clean:
                 // One parallel Clean scan fills all buckets (junk + installers + purge).
                 let r = try await CLIExecutor.shared.run(["clean", "--json"], as: CleanScanResponse.self)
+                guard token == scanToken else { return }
                 junk = r.junk
                 installers = r.installers
                 purgeItems = r.purge
                 if showAICleanup {
                     let det = try? await CLIExecutor.shared.run(["ai", "detect", "--json"], as: AIDetectResponse.self)
+                    guard token == scanToken else { return }
                     aiHasData = det?.hasData ?? false
                 } else {
                     aiHasData = false
@@ -255,6 +268,7 @@ final class AppState {
                     if force || apps.isEmpty {
                         // Fast path: show real .app sizes immediately, then fill leftovers.
                         let quick = try await CLIExecutor.shared.run(["apps", "--quick", "--json"], as: AppsResponse.self)
+                        guard token == scanToken else { return }
                         apps = quick.apps
                         orphans = quick.orphans
                         if !quiet {
@@ -262,6 +276,7 @@ final class AppState {
                             statusLine = "Sizing data…"
                         }
                         let full = try await CLIExecutor.shared.run(["apps", "--json"], as: AppsResponse.self)
+                        guard token == scanToken else { return }
                         apps = full.apps
                         orphans = full.orphans
                     }
@@ -275,22 +290,27 @@ final class AppState {
                     }
                 }
             case .analyze:
-                // Overview + treemap in parallel (was sequential ~4s+).
-                async let overviewTask = CLIExecutor.shared.run(["analyze", "overview", "--json"], as: OverviewResponse.self)
-                async let treemapTask = CLIExecutor.shared.run(
-                    ["analyze", "treemap", "--path", treemapPath, "--json"],
-                    as: TreeNode.self
-                )
-                overview = try await overviewTask
-                treemap = try await treemapTask
-                analyzeSelectedPath = treemap?.children?.first?.path
-                if analyzeSegment == .large {
+                // Only load what the current segment needs — never dual-du the whole home.
+                switch analyzeSegment {
+                case .overview:
+                    overview = try await CLIExecutor.shared.run(["analyze", "overview", "--json"], as: OverviewResponse.self)
+                case .map:
+                    // Volume meter is diskutil-only (fast). Then one-level treemap with timed du.
+                    overview = try await CLIExecutor.shared.run(["analyze", "volume", "--json"], as: OverviewResponse.self)
+                    guard token == scanToken else { return }
+                    treemap = try await CLIExecutor.shared.run(
+                        ["analyze", "treemap", "--path", treemapPath, "--json"],
+                        as: TreeNode.self
+                    )
+                    analyzeSelectedPath = treemap?.children?.first?.path
+                case .large:
                     large = try await CLIExecutor.shared.run(["analyze", "large", "--json"], as: ItemsResponse.self).items
-                } else if analyzeSegment == .dupes {
+                case .dupes:
                     let r = try await CLIExecutor.shared.run(["analyze", "dupes", "--json"], as: DupesResponse.self)
                     dupes = r.groups
                     selected = Set(r.groups.flatMap { Array($0.files.dropFirst()).map(\.path) })
                 }
+                guard token == scanToken else { return }
             case .optimize:
                 if force || optimizeActions.isEmpty {
                     optimizeActions = try await CLIExecutor.shared.run(["optimize", "--dry-run", "--json"], as: OptimizeResponse.self).actions
@@ -298,6 +318,7 @@ final class AppState {
             case .status:
                 metrics = try await CLIExecutor.shared.run(["status", "--json"], as: StatusSnapshot.self)
             }
+            guard token == scanToken else { return }
             if !quiet {
                 statusLine = "Done"
                 if section != .analyze || analyzeSegment != .dupes {
@@ -305,6 +326,7 @@ final class AppState {
                 }
             }
         } catch {
+            guard token == scanToken else { return }
             if let cli = error as? CLIError, case .cancelled = cli {
                 if !quiet { statusLine = "Stopped" }
             } else if !quiet {
@@ -315,9 +337,12 @@ final class AppState {
     }
 
     func stop() {
-        guard busy else { return }
+        guard busy || scanning else { return }
+        scanToken &+= 1
         CLIExecutor.shared.cancel()
-        statusLine = "Stopping…"
+        scanning = false
+        busy = false
+        statusLine = "Stopped"
     }
 
     func runOptimize(ids: [String], dryRun: Bool) async {

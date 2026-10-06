@@ -182,8 +182,8 @@ func ScanOverview(onProgress func(int, string)) Overview {
 			size := j.fileSize
 			if j.isDir {
 				sem <- struct{}{}
-				// Mole basis: du -skP / physical (uncapped).
-				size = fsutil.PathSize(j.full)
+				// Timed du — overview must not block the Analyze UI on huge folders.
+				size = fsutil.PathSizeQuick(j.full)
 				<-sem
 			}
 			if onProgress != nil {

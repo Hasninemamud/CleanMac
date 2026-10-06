@@ -1,12 +1,14 @@
 package fsutil
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/Hasninemamud/CleanMac/internal/safety"
 )
@@ -72,7 +74,19 @@ func PathSizeOpts(path string, opts safety.Opts) int64 {
 
 // DuBytes is Mole `du -skP` → bytes.
 func DuBytes(path string) (int64, bool) {
-	cmd := exec.Command("/usr/bin/du", "-skP", path)
+	return DuBytesTimeout(path, 0)
+}
+
+// DuBytesTimeout is du -skP with an optional deadline. timeout<=0 means no limit.
+func DuBytesTimeout(path string, timeout time.Duration) (int64, bool) {
+	var cmd *exec.Cmd
+	if timeout > 0 {
+		ctx, cancel := context.WithTimeout(context.Background(), timeout)
+		defer cancel()
+		cmd = exec.CommandContext(ctx, "/usr/bin/du", "-skP", path)
+	} else {
+		cmd = exec.Command("/usr/bin/du", "-skP", path)
+	}
 	out, err := cmd.Output()
 	if err != nil {
 		return 0, false
@@ -86,6 +100,34 @@ func DuBytes(path string) (int64, bool) {
 		return 0, false
 	}
 	return kb * 1024, true
+}
+
+// PathSizeQuick sizes dirs for Analyze UI: du with a short timeout, then capped walk.
+// Keeps Map/Overview responsive on huge Library trees.
+func PathSizeQuick(path string) int64 {
+	if path == "" || !Exists(path) {
+		return 0
+	}
+	if safety.IsBlocked(path, safety.Opts{}) {
+		return 0
+	}
+	info, err := os.Lstat(path)
+	if err != nil {
+		return 0
+	}
+	if info.Mode()&os.ModeSymlink != 0 || info.Mode().IsRegular() {
+		if st, ok := info.Sys().(*syscall.Stat_t); ok && st.Blocks > 0 {
+			return st.Blocks * 512
+		}
+		return info.Size()
+	}
+	if !info.IsDir() {
+		return 0
+	}
+	if n, ok := DuBytesTimeout(path, 8*time.Second); ok {
+		return n
+	}
+	return DirectorySizeOpts(path, 20_000, safety.Opts{})
 }
 
 func mdlsPhysical(path string) (int64, bool) {

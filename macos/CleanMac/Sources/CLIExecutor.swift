@@ -80,8 +80,21 @@ struct OverviewResponse: Codable {
     let totalBytes: Int64
     let freeBytes: Int64
     let usedBytes: Int64
-    let categoryBytes: [String: Int64]
-    let topFolders: [TopFolder]
+    var categoryBytes: [String: Int64]
+    var topFolders: [TopFolder]
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        totalBytes = try c.decode(Int64.self, forKey: .totalBytes)
+        freeBytes = try c.decode(Int64.self, forKey: .freeBytes)
+        usedBytes = try c.decode(Int64.self, forKey: .usedBytes)
+        categoryBytes = try c.decodeIfPresent([String: Int64].self, forKey: .categoryBytes) ?? [:]
+        topFolders = try c.decodeIfPresent([TopFolder].self, forKey: .topFolders) ?? []
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case totalBytes, freeBytes, usedBytes, categoryBytes, topFolders
+    }
 }
 
 struct TopFolder: Identifiable, Codable {

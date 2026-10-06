@@ -95,6 +95,9 @@ struct ContentView: View {
                     .padding(.trailing, 4)
                 ForEach(AppState.NavSection.allCases) { s in
                     SegmentPill(title: s.rawValue, selected: state.section == s) {
+                        if state.section != s {
+                            state.stop()
+                        }
                         withAnimation(.spring(response: 0.38, dampingFraction: 0.84)) {
                             state.section = s
                             state.selected.removeAll()

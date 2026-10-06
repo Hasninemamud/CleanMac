@@ -38,7 +38,7 @@ func Treemap(root string, maxChildren int) TreeNode {
 	}
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		node.ByteSize = fsutil.PathSize(root)
+		node.ByteSize = fsutil.PathSizeQuick(root)
 		return node
 	}
 
@@ -79,7 +79,8 @@ func Treemap(root string, maxChildren int) TreeNode {
 			defer wg.Done()
 			child := TreeNode{Path: job.full, Name: job.name, IsDirectory: job.isDir}
 			sem <- struct{}{}
-			child.ByteSize = fsutil.PathSize(job.full)
+			// Quick path — full PathSize on ~/Library can hang the Analyze UI for minutes.
+			child.ByteSize = fsutil.PathSizeQuick(job.full)
 			<-sem
 			kids[i] = child
 		}(i, job)
@@ -104,7 +105,7 @@ func Treemap(root string, maxChildren int) TreeNode {
 	if total > 0 {
 		node.ByteSize = total
 	} else {
-		node.ByteSize = fsutil.PathSize(root)
+		node.ByteSize = fsutil.PathSizeQuick(root)
 	}
 	return node
 }

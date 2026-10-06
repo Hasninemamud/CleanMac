@@ -93,7 +93,7 @@ struct OptimizeView: View {
                 value: pulse
             )
 
-            if complete || state.busy {
+            if complete || (state.busy && !state.optimizeActions.isEmpty) {
                 Text(headline)
                     .font(.system(size: 28, weight: .bold))
                     .foregroundColor(Theme.Mole.ink)
@@ -102,6 +102,11 @@ struct OptimizeView: View {
                     .animation(.spring(response: 0.4, dampingFraction: 0.85), value: headline)
                     .opacity(appeared ? 1 : 0)
                     .offset(y: appeared ? 0 : 12)
+            } else if state.busy && state.optimizeActions.isEmpty {
+                Text("Loading catalog…")
+                    .font(.system(size: 28, weight: .bold))
+                    .foregroundColor(Theme.Mole.ink)
+                    .opacity(appeared ? 1 : 0)
             } else {
                 VStack(spacing: 8) {
                     Text("Closest to the sun, swiftest in flight.")
@@ -114,7 +119,9 @@ struct OptimizeView: View {
                 .offset(y: appeared ? 0 : 12)
             }
 
-            Text(state.busy ? "Working…" : (complete ? "\(ranCount) ran · \(skippedCount) skipped" : "Mercury tends Optimize"))
+            Text(state.busy
+                  ? (state.optimizeActions.isEmpty ? "Preparing…" : "Working…")
+                  : (complete ? "\(ranCount) ran · \(skippedCount) skipped" : "Mercury tends Optimize"))
                 .font(.system(size: 13, weight: .medium))
                 .foregroundColor(Theme.Mole.muted)
                 .multilineTextAlignment(.center)
@@ -161,7 +168,12 @@ struct OptimizeView: View {
             withAnimation(.spring(response: 0.55, dampingFraction: 0.84)) { appeared = true }
             floatUp = true
             if state.optimizeActions.isEmpty {
-                await state.scan()
+                await state.scan(force: true)
+            }
+        }
+        .onChange(of: state.section) { _, section in
+            if section == .optimize, state.optimizeActions.isEmpty, !state.busy {
+                Task { await state.scan(force: true) }
             }
         }
         .onChange(of: state.busy) { _, busy in
