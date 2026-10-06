@@ -44,18 +44,21 @@ type Snapshot struct {
 	DiskTotal   int64        `json:"diskTotal"`
 	DiskFree    int64        `json:"diskFree"`
 	DiskUsed    int64        `json:"diskUsed"`
-	UptimeSec   int64        `json:"uptimeSec,omitempty"`
-	BatteryPct  int          `json:"batteryPct"`
-	BatteryState string      `json:"batteryState,omitempty"`
-	BatteryWatts float64     `json:"batteryWatts,omitempty"`
-	BatteryCycles int        `json:"batteryCycles,omitempty"`
-	NetDownKBs  float64      `json:"netDownKBs"`
-	NetUpKBs    float64      `json:"netUpKBs"`
-	GPUPercent  float64      `json:"gpuPercent"`
-	Thermal     string       `json:"thermal,omitempty"`
-	HealthScore int          `json:"healthScore"`
-	HealthLabel string       `json:"healthLabel"`
-	Processes   []ProcessRow `json:"processes,omitempty"`
+	UptimeSec     int64        `json:"uptimeSec,omitempty"`
+	BatteryPct    int          `json:"batteryPct"`
+	BatteryState  string       `json:"batteryState,omitempty"`
+	BatteryWatts  float64      `json:"batteryWatts,omitempty"`
+	BatteryCycles int          `json:"batteryCycles,omitempty"`
+	BatteryHealth int          `json:"batteryHealth,omitempty"`
+	NetDownKBs    float64      `json:"netDownKBs"`
+	NetUpKBs      float64      `json:"netUpKBs"`
+	NetIface      string       `json:"netIface,omitempty"`
+	GPUPercent    float64      `json:"gpuPercent"`
+	GPUCores      int          `json:"gpuCores,omitempty"`
+	Thermal       string       `json:"thermal,omitempty"`
+	HealthScore   int          `json:"healthScore"`
+	HealthLabel   string       `json:"healthLabel"`
+	Processes     []ProcessRow `json:"processes,omitempty"`
 }
 
 var (
@@ -73,13 +76,13 @@ func Collect() Snapshot {
 	load := loadAvg()
 	cpuPct := cpuPercentRealtime(load, runtime.NumCPU())
 	pressure := memPressure(memUsed, memTotal, swap)
-	battPct, battState, battW := battery()
+	battPct, battState, battW, battCyc, battHealth := battery()
 	// Warm the net sampler so the first popover open has a real rate.
 	_, _ = networkKBs()
 	time.Sleep(220 * time.Millisecond)
 	down, up := networkKBs()
 	procs := topProcesses(12)
-	gpu := gpuUtilization()
+	gpu, gpuCores := gpuUtilization()
 	if gpu < 0 {
 		gpu = gpuEstimate(procs)
 	}
@@ -113,9 +116,13 @@ func Collect() Snapshot {
 		BatteryPct:    battPct,
 		BatteryState:  battState,
 		BatteryWatts:  battW,
+		BatteryCycles: battCyc,
+		BatteryHealth: battHealth,
 		NetDownKBs:    down,
 		NetUpKBs:      up,
+		NetIface:      networkIface(),
 		GPUPercent:    gpu,
+		GPUCores:      gpuCores,
 		Thermal:       thermalLabel(cpuPct, pressure),
 		HealthScore:   score,
 		HealthLabel:   label,
@@ -401,21 +408,22 @@ func uptime() int64 {
 	return time.Now().Unix() - sec
 }
 
-func battery() (pct int, state string, watts float64) {
+func battery() (pct int, state string, watts float64, cycles, health int) {
 	out, err := exec.Command("pmset", "-g", "batt").Output()
 	if err != nil {
-		return 0, "Unknown", 0
+		return 0, "Unknown", 0, 0, 0
 	}
 	s := string(out)
 	if !strings.Contains(s, "%") {
-		return 0, "Desktop", 0
+		return 0, "Desktop", 0, 0, 0
 	}
 	state = "Battery"
-	if strings.Contains(strings.ToLower(s), "charging") {
+	low := strings.ToLower(s)
+	if strings.Contains(low, "charging") {
 		state = "Charging"
-	} else if strings.Contains(strings.ToLower(s), "charged") {
+	} else if strings.Contains(low, "charged") {
 		state = "Charged"
-	} else if strings.Contains(strings.ToLower(s), "ac power") {
+	} else if strings.Contains(low, "ac power") {
 		state = "AC"
 	}
 	// "-InternalBattery-0 (id=…)	87%; charging; ..."
@@ -428,7 +436,99 @@ func battery() (pct int, state string, watts float64) {
 			}
 		}
 	}
-	return pct, state, 0
+	watts, cycles, health = batteryIOReg()
+	return pct, state, watts, cycles, health
+}
+
+// batteryIOReg pulls adapter watts, cycle count, and MaxCapacity % from AppleSmartBattery.
+func batteryIOReg() (watts float64, cycles, health int) {
+	out, err := exec.Command("ioreg", "-r", "-c", "AppleSmartBattery", "-w", "0").Output()
+	if err != nil {
+		return 0, 0, 0
+	}
+	s := string(out)
+	// AdapterDetails / AppleRawAdapterDetails carry charger wattage (e.g. 30).
+	for _, key := range []string{`"AdapterDetails"`, `"AppleRawAdapterDetails"`} {
+		i := strings.Index(s, key)
+		if i < 0 {
+			continue
+		}
+		chunk := s[i:]
+		if end := strings.Index(chunk, "\n"); end > 0 {
+			chunk = chunk[:end]
+		}
+		if w, ok := ioregNumber(chunk, `"Watts"`); ok && w > 0 && w < 500 {
+			watts = w
+			break
+		}
+	}
+	if c, ok := ioregNumber(s, `"CycleCount"`); ok {
+		cycles = int(c)
+	}
+	if h, ok := ioregNumber(s, `"MaxCapacity"`); ok && h > 0 && h <= 100 {
+		health = int(h)
+	}
+	return
+}
+
+func ioregNumber(s, needle string) (float64, bool) {
+	i := strings.Index(s, needle)
+	if i < 0 {
+		return 0, false
+	}
+	rest := s[i+len(needle):]
+	// Skip optional `=` / spaces after the key.
+	for len(rest) > 0 && (rest[0] == '=' || rest[0] == ' ' || rest[0] == '\t') {
+		rest = rest[1:]
+	}
+	end := 0
+	for end < len(rest) && ((rest[end] >= '0' && rest[end] <= '9') || rest[end] == '.') {
+		end++
+	}
+	if end == 0 {
+		return 0, false
+	}
+	v, err := strconv.ParseFloat(rest[:end], 64)
+	return v, err == nil
+}
+
+func networkIface() string {
+	out, err := exec.Command("route", "-n", "get", "default").Output()
+	if err != nil {
+		return ""
+	}
+	dev := ""
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "interface:") {
+			dev = strings.TrimSpace(strings.TrimPrefix(line, "interface:"))
+			break
+		}
+	}
+	if dev == "" {
+		return ""
+	}
+	ports, err := exec.Command("networksetup", "-listallhardwareports").Output()
+	if err == nil {
+		blocks := strings.Split(string(ports), "Hardware Port:")
+		for _, b := range blocks {
+			if !strings.Contains(b, "Device: "+dev) {
+				continue
+			}
+			name := strings.TrimSpace(strings.SplitN(b, "\n", 2)[0])
+			low := strings.ToLower(name)
+			if strings.Contains(low, "wi-fi") || strings.Contains(low, "airport") {
+				return "Wi-Fi"
+			}
+			if strings.Contains(low, "ethernet") {
+				return "Ethernet"
+			}
+			if name != "" {
+				return name
+			}
+		}
+	}
+	return dev
 }
 
 func networkKBs() (down, up float64) {
@@ -574,12 +674,17 @@ func processNamePath(cmd string) (name, path string) {
 	return name, path
 }
 
-func gpuUtilization() float64 {
+func gpuUtilization() (util float64, cores int) {
 	out, err := exec.Command("ioreg", "-r", "-d", "1", "-w", "0", "-c", "IOAccelerator").Output()
 	if err != nil {
-		return -1
+		return -1, 0
 	}
-	return gpuUtilFromIoreg(string(out))
+	s := string(out)
+	util = gpuUtilFromIoreg(s)
+	if c, ok := ioregNumber(s, `"gpu-core-count"`); ok {
+		cores = int(c)
+	}
+	return util, cores
 }
 
 // gpuUtilFromIoreg picks the max "Device Utilization %" from IOAccelerator trees.

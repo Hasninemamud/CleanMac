@@ -242,9 +242,12 @@ struct StatusSnapshot: Codable {
     var batteryState: String?
     var batteryWatts: Double?
     var batteryCycles: Int?
+    var batteryHealth: Int?
     var netDownKBs: Double?
     var netUpKBs: Double?
+    var netIface: String?
     var gpuPercent: Double?
+    var gpuCores: Int?
     var thermal: String?
     var healthScore: Int?
     var healthLabel: String?

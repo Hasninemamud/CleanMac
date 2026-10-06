@@ -92,3 +92,24 @@ func TestParsePSLineKeepsSpaces(t *testing.T) {
 		t.Fatalf("cmd=%q", cmd)
 	}
 }
+
+func TestIORegNumberAndBatteryFields(t *testing.T) {
+	s := `"AdapterDetails" = {"Watts"=30,"Name"="30W USB-C"}
+"CycleCount" = 267
+"MaxCapacity" = 85
+"PowerOutDetails" = ({"Watts"=1028})
+`
+	if v, ok := ioregNumber(s, `"CycleCount"`); !ok || int(v) != 267 {
+		t.Fatalf("cycles got %v ok=%v", v, ok)
+	}
+	if v, ok := ioregNumber(s, `"MaxCapacity"`); !ok || int(v) != 85 {
+		t.Fatalf("health got %v ok=%v", v, ok)
+	}
+	chunk := s[strings.Index(s, `"AdapterDetails"`):]
+	if end := strings.Index(chunk, "\n"); end > 0 {
+		chunk = chunk[:end]
+	}
+	if w, ok := ioregNumber(chunk, `"Watts"`); !ok || w != 30 {
+		t.Fatalf("watts got %v ok=%v", w, ok)
+	}
+}

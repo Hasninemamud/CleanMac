@@ -6,6 +6,7 @@
 - SwiftUI app: Clean (+ Moon AI Cleanup) · Software · Analyze · Optimize (results sheet) · Status (pin/sort/force-quit/copy); Settings (showAICleanup); Menu Bar HUD
 - Junk/cache Clean deletes permanently (not Trash); Uninstall/Analyze keep Trash; `Safety.usesPermanentDelete` / Go `safety.PermanentDelete`
 - Shell: install / launch / build-app / package / selfcheck / test-website
+- Release **2.2.13** — Status metrics fixes, modern theme/animations, permanent junk delete
 - Release **2.2.12** — Fix Analyze/Optimize endless Scanning (timed sizing, segment-only loads)
 - Release **2.2.11** — Mole feature parity (AI Cleanup, Clean categories, Optimize/Status, Analyze/Apps segments)
 - Release **2.2.10** — Mole planet themes (Earth/Mars/Mercury/Jupiter/Sun) on every page
@@ -16,6 +17,7 @@
 - Menu bar left-click → NSPopover SwiftUI HUD (not flat NSMenu); metrics CPU/GPU/health recalibrated vs Activity Monitor / Mole
 - Status Mem/process-name mismatch fixed: AM memory buckets + ps path parsing (Chrome etc.)
 - Modern theme pass: shared tokens (`PlanetCanvas`, `glassPanel`, Motion/Typeface/Radius), section transitions, meter numericText animations; Clean/Apps/Optimize recalculate on appear; Status live refresh loop kept
+- Menu bar dark-glass dashboard redesign (health chips, 2×3 cards, battery, processes, footer shortcuts + ops-log Clean History); status JSON gains batteryHealth/cycles/watts, netIface, gpuCores
 
 ## Next
 

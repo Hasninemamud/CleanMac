@@ -3,7 +3,7 @@
 - **Stack:** Go CLI + shell + SwiftUI only (Electron removed)
 - Nav: Clean · Software · Analyze · Optimize · Status (+ Settings, Menu Bar)
 - Junk/cache cleanup permanently deletes (removeItem); Uninstall + Analyze still use Trash; Optimize already os.RemoveAll
-- Version **2.2.12** — Analyze/Optimize scan hang fixed (timed sizing)
+- Version **2.2.13** — Status metrics fixes, modern theme/animations, permanent junk delete
 - Disk Status uses APFS **container** totals + **decimal GB**
 - Whitelist + operations log; junk uses Mole 10-category taxonomy (+ Trash last)
 - AI Cleanup (Moon) on Clean when AI folders detected; `cleanmac ai detect|scan`
@@ -16,4 +16,6 @@
 - Disk free: ImportantUsage (System Settings–aligned); keep that
 - App UI: Mole planet themes (Earth/Mars/Mercury/Jupiter/Sun) via `Theme.Feature` + `PlanetCanvas` atmosphere; dark forced appearance; glass panels / motion tokens in `Theme.swift`
 - Status + menu bar HUD bind live `StatusSnapshot` (CPU top, GPU ioreg, AM mem, ImportantUsage disk); meters animate on refresh
+- Menu bar popover: dark-glass dashboard (~380px) — health+chips, 2×3 metric cards, battery, top procs, privacy/Awake/Screen, Clean History from ops log when present
+- Status JSON extras: batteryHealth/cycles/watts (ioreg), netIface, gpuCores
 - Local builds: workspace `macos/CleanMac.app` + `/Applications/CleanMac.app` refreshed with modern theme/motion pass
