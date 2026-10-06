@@ -42,3 +42,19 @@ func TestSensitiveHomeBlocked(t *testing.T) {
 		}
 	}
 }
+
+func TestPermanentDeleteJunkOnly(t *testing.T) {
+	// Clean / Apps caches / AI → permanent; uninstall + Analyze → Trash.
+	if !PermanentDelete(false, false) {
+		t.Fatal("junk cleanup should permanently delete")
+	}
+	if PermanentDelete(true, false) {
+		t.Fatal("uninstall must keep Trash")
+	}
+	if PermanentDelete(false, true) {
+		t.Fatal("Analyze must keep Trash")
+	}
+	if PermanentDelete(true, true) {
+		t.Fatal("uninstall+analyze must keep Trash")
+	}
+}

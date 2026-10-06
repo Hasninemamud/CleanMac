@@ -41,7 +41,7 @@ struct CleanCategory: Identifiable {
     }
     var blurb: String {
         items.first?.explanation
-            ?? "Review items before moving them to Trash."
+            ?? "Review items before permanently deleting."
     }
 }
 

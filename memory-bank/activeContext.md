@@ -2,7 +2,7 @@
 
 - **Stack:** Go CLI + shell + SwiftUI only (Electron removed)
 - Nav: Clean · Software · Analyze · Optimize · Status (+ Settings, Menu Bar)
-- Trash-only deletes in Swift by default; Settings can switch caches to permanent delete
+- Junk/cache cleanup permanently deletes (removeItem); Uninstall + Analyze still use Trash; Optimize already os.RemoveAll
 - Version **2.2.12** — Analyze/Optimize scan hang fixed (timed sizing)
 - Disk Status uses APFS **container** totals + **decimal GB**
 - Whitelist + operations log; junk uses Mole 10-category taxonomy (+ Trash last)

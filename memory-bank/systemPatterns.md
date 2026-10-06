@@ -2,7 +2,7 @@
 
 ```
 SwiftUI Models → CLIExecutor (argv) → bin/cleanmac --json
-                         ↘ FileManager.trashItem
+                         ↘ removeItem (junk) / trashItem (uninstall, Analyze)
 ```
 
 - `internal/*` — Go scanners + safety

@@ -59,4 +59,9 @@ enum Safety {
     static func canTrash(path: String, safety: String, allowApps: Bool = false) -> Bool {
         safety != "blocked" && !isBlocked(path, allowApps: allowApps)
     }
+
+    /// Junk/cache cleanup permanently removes. Uninstall and Analyze keep Trash for recoverability.
+    static func usesPermanentDelete(isUninstall: Bool, isAnalyze: Bool) -> Bool {
+        !isUninstall && !isAnalyze
+    }
 }

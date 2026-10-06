@@ -29,9 +29,9 @@ struct ContentView: View {
                 Task { await state.scan(quiet: true) }
             }
         }
-        .alert(state.cacheRemovalMode == "permanent" ? "Delete permanently?" : "Move to Trash?", isPresented: $state.confirmTrash) {
+        .alert(state.deletesPermanently ? "Delete permanently?" : "Move to Trash?", isPresented: $state.confirmTrash) {
             Button("Cancel", role: .cancel) {}
-            Button(state.cacheRemovalMode == "permanent" ? "Delete" : "Move to Trash", role: .destructive) {
+            Button(state.deletesPermanently ? "Delete" : "Move to Trash", role: .destructive) {
                 Task { await state.trashSelected() }
             }
         } message: {
@@ -218,7 +218,7 @@ struct ContentView: View {
             .buttonStyle(SoftButtonStyle())
             Button("Clear") { state.selected.removeAll() }
                 .buttonStyle(SoftButtonStyle())
-            Button("Move to Trash") { state.confirmTrash = true }
+            Button(state.deletesPermanently ? "Delete" : "Move to Trash") { state.confirmTrash = true }
                 .buttonStyle(DangerButtonStyle())
         }
         .padding(.horizontal, 18)
@@ -235,7 +235,7 @@ struct ContentView: View {
 
     private var pageSubtitle: String {
         switch state.section {
-        case .clean: return "Caches, logs, installers, artifacts — review before Trash"
+        case .clean: return "Caches, logs, installers, artifacts — review before permanent delete"
         case .software: return "Caches, leftovers, uninstall, updates, startup"
         case .analyze: return "Disk map, treemap drill-down, large files, duplicates"
         case .optimize: return "Maintenance catalog — preview, then confirm"

@@ -113,3 +113,9 @@ func Classify(path, intended string, opts Opts) string {
 func CanTrash(path, safety string, opts Opts) bool {
 	return safety != "blocked" && !IsBlocked(path, opts)
 }
+
+// PermanentDelete is true for junk/cache cleanup (permanent removeItem).
+// Uninstall and Analyze keep Trash for recoverability. Mirrored in Swift Safety.usesPermanentDelete.
+func PermanentDelete(isUninstall, isAnalyze bool) bool {
+	return !isUninstall && !isAnalyze
+}

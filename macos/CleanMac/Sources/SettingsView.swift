@@ -61,12 +61,10 @@ struct SettingsView: View {
             Text("Cleaning")
                 .font(.system(size: 12, weight: .bold))
                 .foregroundColor(Theme.muted)
-            Picker("Cache removal", selection: $state.cacheRemovalMode) {
-                Text("Move to Trash").tag("trash")
-                Text("Delete permanently").tag("permanent")
-            }
-            .pickerStyle(.radioGroup)
-            .tint(Theme.accent)
+            Text("Junk and caches are permanently deleted (not moved to Trash). Uninstall and Analyze still use Trash.")
+                .foregroundColor(Theme.muted)
+                .font(.system(size: 12))
+                .fixedSize(horizontal: false, vertical: true)
 
             Toggle("Show AI Cleanup entry when AI data is found", isOn: $state.showAICleanup)
                 .tint(Theme.accent)

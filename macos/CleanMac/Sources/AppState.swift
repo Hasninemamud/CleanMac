@@ -16,10 +16,6 @@ final class AppState {
     var appsQuery = ""
     var alsoRemoveData = true
     var ignoredUpdateIDs: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "ignoredUpdateIDs") ?? [])
-    /// permanent | trash — how cache/junk deletes are performed.
-    var cacheRemovalMode: String = UserDefaults.standard.string(forKey: "cacheRemovalMode") ?? "trash" {
-        didSet { UserDefaults.standard.set(cacheRemovalMode, forKey: "cacheRemovalMode") }
-    }
     var showAICleanup: Bool = UserDefaults.standard.object(forKey: "showAICleanup") as? Bool ?? true {
         didSet { UserDefaults.standard.set(showAICleanup, forKey: "showAICleanup") }
     }
@@ -364,6 +360,12 @@ final class AppState {
         }
     }
 
+    /// True when the next confirm will permanently remove (junk/cache), not Trash.
+    var deletesPermanently: Bool {
+        let uninstall = section == .software && softwareSegment == .uninstall
+        return Safety.usesPermanentDelete(isUninstall: uninstall, isAnalyze: section == .analyze && !showAIReview)
+    }
+
     func trashSelected() async {
         let allowApps = section == .software && softwareSegment == .uninstall
         var raw = Array(selected)
@@ -374,13 +376,17 @@ final class AppState {
                 }
             }
         }
+        // Only paths already labeled safe/review and not blocked — never broaden whitelist.
         let paths = raw.filter {
             Safety.canTrash(path: $0, safety: "review", allowApps: allowApps)
                 || Safety.canTrash(path: $0, safety: "safe", allowApps: allowApps)
         }
         .filter { !Safety.isBlocked($0, allowApps: allowApps) }
         let collapsed = collapseNested(Array(Set(paths)))
-        let permanent = cacheRemovalMode == "permanent" && !allowApps
+        let permanent = Safety.usesPermanentDelete(
+            isUninstall: allowApps,
+            isAnalyze: section == .analyze && !showAIReview
+        )
         var ok = 0
         var fail = 0
         var bytes: Int64 = 0
@@ -388,7 +394,7 @@ final class AppState {
             do {
                 let size = (try? FileManager.default.attributesOfItem(atPath: p)[.size] as? Int64) ?? 0
                 if permanent {
-                    // Only permanent-delete known cache/safe junk — never apps/uninstall.
+                    // Junk/cache only: permanent remove. Uninstall stays on Trash below.
                     try FileManager.default.removeItem(atPath: p)
                 } else {
                     var resulting: NSURL?

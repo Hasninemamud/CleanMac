@@ -312,7 +312,7 @@ struct CleanView: View {
             Button {
                 state.confirmTrash = true
             } label: {
-                Text("\(state.cacheRemovalMode == "permanent" ? "Permanently clean" : "Move to Trash") · \(ByteFormat.disk(state.selectedBytes))")
+                Text("Delete permanently · \(ByteFormat.disk(state.selectedBytes))")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundColor(Theme.Mole.ctaInk)
                     .padding(.horizontal, 20)

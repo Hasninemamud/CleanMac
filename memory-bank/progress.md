@@ -3,7 +3,8 @@
 ## Done
 
 - Go kernel `cmd/cleanmac`: junk (10-cat taxonomy), installers, purge, apps, software, analyze (+treemap), optimize (expanded catalog), status (process paths), whitelist, history, doctor, **ai detect|scan**
-- SwiftUI app: Clean (+ Moon AI Cleanup) · Software · Analyze · Optimize (results sheet) · Status (pin/sort/force-quit/copy); Settings (cacheRemovalMode, showAICleanup); Menu Bar HUD
+- SwiftUI app: Clean (+ Moon AI Cleanup) · Software · Analyze · Optimize (results sheet) · Status (pin/sort/force-quit/copy); Settings (showAICleanup); Menu Bar HUD
+- Junk/cache Clean deletes permanently (not Trash); Uninstall/Analyze keep Trash; `Safety.usesPermanentDelete` / Go `safety.PermanentDelete`
 - Shell: install / launch / build-app / package / selfcheck / test-website
 - Release **2.2.12** — Fix Analyze/Optimize endless Scanning (timed sizing, segment-only loads)
 - Release **2.2.11** — Mole feature parity (AI Cleanup, Clean categories, Optimize/Status, Analyze/Apps segments)
