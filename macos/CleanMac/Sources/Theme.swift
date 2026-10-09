@@ -2,19 +2,46 @@ import SwiftUI
 import AppKit
 
 enum Theme {
-    // Shared chrome — overridden per-page by Feature.pageBG / surface.
-    static let bg = Color(red: 0.110, green: 0.140, blue: 0.220)
-    static let rail = Color(red: 0.086, green: 0.110, blue: 0.176)
-    static let surface = Color(red: 0.155, green: 0.188, blue: 0.275)
-    static let surface2 = Color(red: 0.200, green: 0.235, blue: 0.325)
-    static let ink = Color.white
-    static let muted = Color.white.opacity(0.64)
-    static let line = Color.white.opacity(0.14)
-    static let accent = Color(red: 0.40, green: 0.60, blue: 0.96)
-    static let accentSoft = Color(red: 0.40, green: 0.60, blue: 0.96).opacity(0.20)
-    static let ok = Color(red: 0.74, green: 0.86, blue: 0.40)
-    static let warn = Color(red: 0.96, green: 0.66, blue: 0.28)
-    static let danger = Color(red: 1.0, green: 0.50, blue: 0.38)
+    /// Cream (light) / chocolate (dark) — flipped by the sun toggle.
+    static var useDark: Bool = UserDefaults.standard.object(forKey: "appearanceDark") as? Bool ?? true
+
+    // Shared chrome (mock: unified cream/chocolate, planet accents on icons only).
+    static var bg: Color {
+        useDark ? Color(red: 0.102, green: 0.071, blue: 0.051) : Color(red: 0.992, green: 0.973, blue: 0.890)
+    }
+    static var rail: Color {
+        useDark ? Color(red: 0.086, green: 0.059, blue: 0.043) : Color(red: 0.980, green: 0.953, blue: 0.855)
+    }
+    static var surface: Color {
+        useDark ? Color(red: 0.145, green: 0.110, blue: 0.086) : Color(red: 1.0, green: 0.995, blue: 0.975)
+    }
+    static var surface2: Color {
+        useDark ? Color(red: 0.185, green: 0.145, blue: 0.115) : Color(red: 0.965, green: 0.930, blue: 0.820)
+    }
+    static var ink: Color {
+        useDark ? Color(red: 0.992, green: 0.961, blue: 0.902) : Color(red: 0.220, green: 0.145, blue: 0.100)
+    }
+    static var muted: Color {
+        useDark ? Color(red: 0.992, green: 0.961, blue: 0.902).opacity(0.58) : Color(red: 0.420, green: 0.320, blue: 0.240)
+    }
+    static var line: Color {
+        useDark ? Color.white.opacity(0.10) : Color(red: 0.220, green: 0.145, blue: 0.100).opacity(0.12)
+    }
+    static var accent: Color { Color(red: 0.83, green: 0.36, blue: 0.28) } // terracotta
+    static var accentSoft: Color { accent.opacity(0.18) }
+    static var ok: Color { Color(red: 0.42, green: 0.58, blue: 0.48) }
+    static var warn: Color { Color(red: 0.85, green: 0.66, blue: 0.35) }
+    static var danger: Color { Color(red: 0.83, green: 0.36, blue: 0.28) }
+    /// Sandy primary CTA (dark Scan Mac) / terracotta fill when light.
+    static var ctaFill: Color {
+        useDark ? Color(red: 0.851, green: 0.663, blue: 0.451) : Color(red: 0.83, green: 0.36, blue: 0.28)
+    }
+    static var ctaInk: Color {
+        useDark ? Color(red: 0.180, green: 0.110, blue: 0.070) : Color.white
+    }
+    static var footerBar: Color {
+        useDark ? Color(red: 0.160, green: 0.120, blue: 0.090) : Color(red: 0.925, green: 0.870, blue: 0.755)
+    }
 
     enum Radius {
         static let sm: CGFloat = 10
@@ -46,31 +73,30 @@ enum Theme {
         static let snappy = Animation.spring(response: 0.32, dampingFraction: 0.84)
         static let meter = Animation.spring(response: 0.55, dampingFraction: 0.86)
         static let press = Animation.spring(response: 0.26, dampingFraction: 0.72)
-        /// Slow atmosphere drift — not a busy loop.
         static let atmosphere = Animation.easeInOut(duration: 4.2).repeatForever(autoreverses: true)
     }
 
-    /// Shared Mole chrome tokens (white CTA, blue link).
+    /// Aliases so existing Mole.* call sites track cream/chocolate.
     enum Mole {
-        static let bg = Color(red: 0.110, green: 0.140, blue: 0.220)
-        static let rail = Color(red: 0.086, green: 0.110, blue: 0.176)
-        static let surface = Color(red: 0.155, green: 0.188, blue: 0.275)
-        static let surface2 = Color(red: 0.200, green: 0.235, blue: 0.325)
-        static let ink = Color.white
-        static let muted = Color.white.opacity(0.64)
-        static let line = Color.white.opacity(0.14)
-        static let link = Color(red: 0.52, green: 0.68, blue: 1.0)
-        static let cta = Color.white
-        static let ctaInk = Color(red: 0.100, green: 0.130, blue: 0.210)
+        static var bg: Color { Theme.bg }
+        static var rail: Color { Theme.rail }
+        static var surface: Color { Theme.surface }
+        static var surface2: Color { Theme.surface2 }
+        static var ink: Color { Theme.ink }
+        static var muted: Color { Theme.muted }
+        static var line: Color { Theme.line }
+        static var link: Color { Theme.useDark ? Color(red: 0.75, green: 0.62, blue: 0.45) : Color(red: 0.35, green: 0.25, blue: 0.18) }
+        static var cta: Color { Theme.ctaFill }
+        static var ctaInk: Color { Theme.ctaInk }
     }
 
-    /// Planet pages from mole.fit (Earth / Mars / Mercury / Jupiter / Sun).
+    /// Planet icon accents (nav dots) — page chrome is shared cream/chocolate.
     enum Feature {
-        static let clean = Color(red: 0.40, green: 0.60, blue: 0.96)     // Earth blue
-        static let apps = Color(red: 1.0, green: 0.50, blue: 0.38)        // Mars salmon
-        static let analyze = Color(red: 0.82, green: 0.68, blue: 0.54)    // Jupiter tan
-        static let optimize = Color(red: 0.82, green: 0.80, blue: 0.76)   // Mercury grey
-        static let status = Color(red: 0.74, green: 0.86, blue: 0.40)     // Sun lime
+        static let clean = Color(red: 0.45, green: 0.62, blue: 0.78)     // Earth
+        static let apps = Color(red: 0.82, green: 0.38, blue: 0.30)       // Mars
+        static let analyze = Color(red: 0.72, green: 0.58, blue: 0.42)    // Jupiter
+        static let optimize = Color(red: 0.72, green: 0.70, blue: 0.66)   // Mercury
+        static let status = Color(red: 0.88, green: 0.72, blue: 0.28)     // Sun
 
         static func accent(for section: AppState.NavSection) -> Color {
             switch section {
@@ -82,57 +108,16 @@ enum Theme {
             }
         }
 
-        static func pageBG(for section: AppState.NavSection) -> Color {
-            switch section {
-            case .clean: return Color(red: 0.110, green: 0.140, blue: 0.220)    // Earth
-            case .software: return Color(red: 0.095, green: 0.072, blue: 0.066)  // Mars
-            case .analyze: return Color(red: 0.225, green: 0.158, blue: 0.112)   // Jupiter
-            case .optimize: return Color(red: 0.145, green: 0.138, blue: 0.142)  // Mercury
-            case .status: return Color(red: 0.155, green: 0.148, blue: 0.112)    // Sun
-            }
-        }
+        static func pageBG(for section: AppState.NavSection) -> Color { Theme.bg }
+        static func rail(for section: AppState.NavSection) -> Color { Theme.rail }
+        static func surface(for section: AppState.NavSection) -> Color { Theme.surface }
+        static func surface2(for section: AppState.NavSection) -> Color { Theme.surface2 }
+        static func isDark(_ section: AppState.NavSection) -> Bool { Theme.useDark }
+        static var ctaInk: Color { Theme.ctaInk }
 
-        static func rail(for section: AppState.NavSection) -> Color {
-            switch section {
-            case .clean: return Color(red: 0.086, green: 0.110, blue: 0.176)
-            case .software: return Color(red: 0.075, green: 0.052, blue: 0.048)
-            case .analyze: return Color(red: 0.180, green: 0.122, blue: 0.086)
-            case .optimize: return Color(red: 0.110, green: 0.102, blue: 0.106)
-            case .status: return Color(red: 0.122, green: 0.115, blue: 0.086)
-            }
-        }
-
-        static func surface(for section: AppState.NavSection) -> Color {
-            switch section {
-            case .clean: return Color(red: 0.150, green: 0.190, blue: 0.285)
-            case .software: return Color(red: 0.155, green: 0.118, blue: 0.112)
-            case .analyze: return Color(red: 0.300, green: 0.225, blue: 0.170)
-            case .optimize: return Color(red: 0.205, green: 0.196, blue: 0.190)
-            case .status: return Color(red: 0.225, green: 0.212, blue: 0.168)
-            }
-        }
-
-        static func surface2(for section: AppState.NavSection) -> Color {
-            switch section {
-            case .clean: return Color(red: 0.190, green: 0.232, blue: 0.335)
-            case .software: return Color(red: 0.205, green: 0.155, blue: 0.145)
-            case .analyze: return Color(red: 0.360, green: 0.275, blue: 0.210)
-            case .optimize: return Color(red: 0.265, green: 0.252, blue: 0.242)
-            case .status: return Color(red: 0.285, green: 0.268, blue: 0.212)
-            }
-        }
-
-        static func isDark(_ section: AppState.NavSection) -> Bool { true }
-
-        static var ctaInk: Color { Mole.ctaInk }
-
-        /// Elevated panel fill with a light top-edge highlight.
         static func panelFill(for section: AppState.NavSection) -> LinearGradient {
             LinearGradient(
-                colors: [
-                    surface2(for: section).opacity(0.95),
-                    surface(for: section),
-                ],
+                colors: [surface2(for: section).opacity(0.95), surface(for: section)],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
@@ -142,34 +127,34 @@ enum Theme {
 
 // MARK: - Atmosphere / panels
 
-/// Layered planet background with a slow accent drift (battery-friendly).
+/// Soft cream/chocolate canvas with a faint section accent wash.
 struct PlanetCanvas: View {
     let section: AppState.NavSection
     @State private var drift = false
 
     var body: some View {
         let accent = Theme.Feature.accent(for: section)
+        let wash = Theme.useDark ? 0.10 : 0.06
         ZStack {
-            Theme.Feature.pageBG(for: section)
+            Theme.bg
             RadialGradient(
-                colors: [accent.opacity(drift ? 0.16 : 0.07), .clear],
-                center: UnitPoint(x: drift ? 0.88 : 0.78, y: drift ? 0.12 : 0.22),
-                startRadius: 12,
-                endRadius: 420
-            )
-            RadialGradient(
-                colors: [accent.opacity(0.08), .clear],
-                center: UnitPoint(x: 0.12, y: 0.92),
-                startRadius: 8,
-                endRadius: 300
+                colors: [accent.opacity(drift ? wash : wash * 0.45), .clear],
+                center: UnitPoint(x: drift ? 0.82 : 0.72, y: drift ? 0.18 : 0.28),
+                startRadius: 20,
+                endRadius: 380
             )
             LinearGradient(
-                colors: [Color.white.opacity(0.04), .clear, Color.black.opacity(0.12)],
+                colors: [
+                    Theme.useDark ? Color.white.opacity(0.03) : Color.white.opacity(0.35),
+                    .clear,
+                    Theme.useDark ? Color.black.opacity(0.18) : Color(red: 0.22, green: 0.14, blue: 0.10).opacity(0.04),
+                ],
                 startPoint: .top,
                 endPoint: .bottom
             )
         }
         .animation(.easeInOut(duration: 0.35), value: section)
+        .animation(.easeInOut(duration: 0.35), value: Theme.useDark)
         .onAppear {
             withAnimation(Theme.Motion.atmosphere) { drift = true }
         }
@@ -291,14 +276,12 @@ struct PrimaryButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12, weight: .bold))
-            .foregroundColor(Theme.Mole.ctaInk)
+            .foregroundColor(disabled ? Theme.muted : Theme.ctaInk)
             .padding(.horizontal, 14)
             .padding(.vertical, 8)
-            .background(
-                Color.white.opacity(disabled ? 0.4 : (configuration.isPressed ? 0.82 : 1))
-            )
+            .background(Theme.ctaFill.opacity(disabled ? 0.4 : (configuration.isPressed ? 0.85 : 1)))
             .clipShape(Capsule())
-            .shadow(color: Color.white.opacity(disabled || configuration.isPressed ? 0 : 0.14), radius: 10, y: 2)
+            .shadow(color: Theme.ctaFill.opacity(disabled || configuration.isPressed ? 0 : 0.28), radius: 10, y: 2)
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .animation(Theme.Motion.press, value: configuration.isPressed)
     }
@@ -311,10 +294,8 @@ struct SoftButtonStyle: ButtonStyle {
             .foregroundColor(Theme.ink)
             .padding(.horizontal, 12)
             .padding(.vertical, 7)
-            .background(Theme.Mole.surface.opacity(configuration.isPressed ? 0.75 : 1))
-            .overlay(
-                Capsule().stroke(Theme.Mole.line, lineWidth: 1)
-            )
+            .background(Theme.surface.opacity(configuration.isPressed ? 0.75 : 1))
+            .overlay(Capsule().stroke(Theme.line, lineWidth: 1))
             .clipShape(Capsule())
             .scaleEffect(configuration.isPressed ? 0.97 : 1)
             .opacity(configuration.isPressed ? 0.9 : 1)
@@ -349,17 +330,30 @@ struct SegmentPill: View {
 
     var body: some View {
         Button(action: action) {
-            Text(title)
-                .font(.system(size: 12, weight: selected ? .bold : .semibold))
-                .foregroundColor(selected ? Theme.Mole.ctaInk : Theme.Mole.muted)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 7)
-                .background {
-                    if selected {
-                        pillFill
-                    }
+            HStack(spacing: 6) {
+                if let accent {
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [accent.opacity(0.95), accent.opacity(0.55)],
+                                center: .topLeading,
+                                startRadius: 0,
+                                endRadius: 8
+                            )
+                        )
+                        .frame(width: 10, height: 10)
+                        .overlay(Circle().stroke(Color.white.opacity(Theme.useDark ? 0.15 : 0.35), lineWidth: 0.5))
                 }
-                .scaleEffect(selected ? 1 : 0.98)
+                Text(title)
+                    .font(.system(size: 12, weight: selected ? .bold : .semibold))
+                    .foregroundColor(selected ? Theme.ink : Theme.muted)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background {
+                if selected { pillFill }
+            }
+            .scaleEffect(selected ? 1 : 0.98)
         }
         .buttonStyle(.plain)
         .animation(Theme.Motion.snappy, value: selected)
@@ -367,15 +361,16 @@ struct SegmentPill: View {
 
     @ViewBuilder
     private var pillFill: some View {
+        let fill = Theme.useDark ? Color.white.opacity(0.10) : Color.white
         if let namespace {
             Capsule()
-                .fill(Theme.Mole.cta)
-                .shadow(color: Color.white.opacity(0.18), radius: 6, y: 1)
+                .fill(fill)
+                .shadow(color: Color.black.opacity(Theme.useDark ? 0.25 : 0.06), radius: 6, y: 1)
                 .matchedGeometryEffect(id: matchID, in: namespace)
         } else {
             Capsule()
-                .fill(Theme.Mole.cta)
-                .shadow(color: Color.white.opacity(0.18), radius: 6, y: 1)
+                .fill(fill)
+                .shadow(color: Color.black.opacity(Theme.useDark ? 0.25 : 0.06), radius: 6, y: 1)
         }
     }
 }
@@ -537,57 +532,65 @@ struct BarMeter: View {
 struct Sparkline: View {
     let values: [Double]
     let color: Color
+    /// When true (default), Y axis is always 0…1 so % metrics don't auto-zoom into noise.
+    var fixedScale: Bool = true
+    var lineWidth: CGFloat = 1.6
+
+    private var samples: [Double] {
+        let raw = values.map { min(max($0, 0), 1) }
+        if raw.isEmpty { return [0, 0] }
+        if raw.count == 1 { return [raw[0], raw[0]] }
+        return Array(raw.suffix(24))
+    }
 
     var body: some View {
         GeometryReader { geo in
-            let maxV = max(values.max() ?? 1, 0.001)
-            let minV = min(values.min() ?? 0, maxV)
+            let vals = samples
+            let maxV = fixedScale ? 1.0 : max(vals.max() ?? 1, 0.001)
+            let minV = fixedScale ? 0.0 : (vals.min() ?? 0)
             let span = max(maxV - minV, 0.001)
-            let pts: [CGPoint] = values.enumerated().map { i, v in
-                let x = values.count <= 1 ? 0 : CGFloat(i) / CGFloat(values.count - 1) * geo.size.width
-                let y = geo.size.height - CGFloat((v - minV) / span) * geo.size.height * 0.92 - geo.size.height * 0.04
+            let h = max(geo.size.height, 1)
+            let w = max(geo.size.width, 1)
+            let pts: [CGPoint] = vals.enumerated().map { i, v in
+                let x = CGFloat(i) / CGFloat(vals.count - 1) * w
+                let y = h - CGFloat((v - minV) / span) * (h * 0.88) - h * 0.06
                 return CGPoint(x: x, y: y)
             }
 
             ZStack {
-                VStack(spacing: 0) {
-                    ForEach(0..<3, id: \.self) { _ in
-                        Spacer()
-                        Rectangle().fill(Theme.line.opacity(0.55)).frame(height: 1)
-                    }
-                    Spacer(minLength: 0)
+                Path { p in
+                    p.move(to: CGPoint(x: 0, y: h * 0.5))
+                    p.addLine(to: CGPoint(x: w, y: h * 0.5))
                 }
+                .stroke(Theme.line.opacity(0.45), style: StrokeStyle(lineWidth: 1, dash: [3, 3]))
 
-                if pts.count > 1 {
-                    Path { p in
-                        p.move(to: CGPoint(x: pts[0].x, y: geo.size.height))
-                        for pt in pts { p.addLine(to: pt) }
-                        p.addLine(to: CGPoint(x: pts.last!.x, y: geo.size.height))
-                        p.closeSubpath()
-                    }
-                    .fill(
-                        LinearGradient(
-                            colors: [color.opacity(0.28), color.opacity(0.02)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
+                Path { p in
+                    p.move(to: CGPoint(x: pts[0].x, y: h))
+                    for pt in pts { p.addLine(to: pt) }
+                    p.addLine(to: CGPoint(x: pts.last!.x, y: h))
+                    p.closeSubpath()
+                }
+                .fill(
+                    LinearGradient(
+                        colors: [color.opacity(0.30), color.opacity(0.02)],
+                        startPoint: .top,
+                        endPoint: .bottom
                     )
+                )
 
-                    Path { p in
-                        p.move(to: pts[0])
-                        for pt in pts.dropFirst() { p.addLine(to: pt) }
-                    }
-                    .stroke(color, style: StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
-                    .animation(Theme.Motion.meter, value: values.last)
-
-                    Circle()
-                        .fill(color)
-                        .frame(width: 7, height: 7)
-                        .shadow(color: color.opacity(0.5), radius: 4)
-                        .position(pts.last!)
+                Path { p in
+                    p.move(to: pts[0])
+                    for pt in pts.dropFirst() { p.addLine(to: pt) }
                 }
+                .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round, lineJoin: .round))
+
+                Circle()
+                    .fill(color)
+                    .frame(width: 5, height: 5)
+                    .position(pts.last!)
             }
+            .clipped()
         }
-        .frame(height: 72)
+        .accessibilityHidden(true)
     }
 }

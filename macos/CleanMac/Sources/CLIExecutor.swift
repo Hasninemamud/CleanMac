@@ -304,11 +304,20 @@ final class CLIExecutor: @unchecked Sendable {
     }
 
     func run<T: Decodable>(_ args: [String], as type: T.Type) async throws -> T {
+        try await runDecoded(args, as: type, track: true)
+    }
+
+    /// Status/menu-bar polls — does not touch `currentProcess`, so Stop/scan cancel stay independent.
+    func runBackground<T: Decodable>(_ args: [String], as type: T.Type) async throws -> T {
+        try await runDecoded(args, as: type, track: false)
+    }
+
+    private func runDecoded<T: Decodable>(_ args: [String], as type: T.Type, track: Bool) async throws -> T {
         let bin = binaryPath()
         guard FileManager.default.isExecutableFile(atPath: bin) else {
             throw CLIError.binaryMissing(bin)
         }
-        let data = try await runRaw([bin] + args)
+        let data = try await runRaw([bin] + args, track: track)
         let payload = Self.resultJSON(from: data)
         do {
             return try JSONDecoder().decode(T.self, from: payload)
@@ -340,7 +349,7 @@ final class CLIExecutor: @unchecked Sendable {
         return data
     }
 
-    private func runRaw(_ argv: [String]) async throws -> Data {
+    private func runRaw(_ argv: [String], track: Bool = true) async throws -> Data {
         try await withCheckedThrowingContinuation { cont in
             DispatchQueue.global(qos: .userInitiated).async {
                 let proc = Process()
@@ -351,17 +360,21 @@ final class CLIExecutor: @unchecked Sendable {
                 proc.standardOutput = out
                 proc.standardError = err
 
-                self.lock.lock()
-                self.currentProcess = proc
-                self.lock.unlock()
+                if track {
+                    self.lock.lock()
+                    self.currentProcess = proc
+                    self.lock.unlock()
+                }
 
                 do {
                     try proc.run()
                     proc.waitUntilExit()
 
-                    self.lock.lock()
-                    if self.currentProcess === proc { self.currentProcess = nil }
-                    self.lock.unlock()
+                    if track {
+                        self.lock.lock()
+                        if self.currentProcess === proc { self.currentProcess = nil }
+                        self.lock.unlock()
+                    }
 
                     if proc.terminationReason == .uncaughtSignal || proc.terminationStatus == 15 || proc.terminationStatus == SIGTERM {
                         cont.resume(throwing: CLIError.cancelled)
@@ -377,9 +390,11 @@ final class CLIExecutor: @unchecked Sendable {
                     }
                     cont.resume(returning: data)
                 } catch {
-                    self.lock.lock()
-                    if self.currentProcess === proc { self.currentProcess = nil }
-                    self.lock.unlock()
+                    if track {
+                        self.lock.lock()
+                        if self.currentProcess === proc { self.currentProcess = nil }
+                        self.lock.unlock()
+                    }
                     cont.resume(throwing: error)
                 }
             }

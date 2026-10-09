@@ -19,6 +19,16 @@ final class AppState {
     var showAICleanup: Bool = UserDefaults.standard.object(forKey: "showAICleanup") as? Bool ?? true {
         didSet { UserDefaults.standard.set(showAICleanup, forKey: "showAICleanup") }
     }
+    /// Cream (false) / chocolate (true) — drives Theme.useDark + system appearance.
+    var appearanceDark: Bool = UserDefaults.standard.object(forKey: "appearanceDark") as? Bool ?? true {
+        didSet {
+            UserDefaults.standard.set(appearanceDark, forKey: "appearanceDark")
+            Theme.useDark = appearanceDark
+            NSApp.appearance = NSAppearance(named: appearanceDark ? .darkAqua : .aqua)
+            appearanceTick &+= 1
+        }
+    }
+    var appearanceTick: Int = 0
     var aiHasData = false
     var aiItems: [ScanItem] = []
     var showAIReview = false
@@ -329,6 +339,13 @@ final class AppState {
                 errorMessage = error.localizedDescription
                 statusLine = "Error"
             }
+        }
+    }
+
+    /// Menu-bar / HUD poll — never flips `section` or cancels an in-flight scan.
+    func fetchStatusMetrics() async {
+        if let m = try? await CLIExecutor.shared.runBackground(["status", "--json"], as: StatusSnapshot.self) {
+            metrics = m
         }
     }
 

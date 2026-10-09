@@ -8,9 +8,10 @@ struct CleanMacApp: App {
         WindowGroup {
             ContentView()
                 .environment(state)
-                .preferredColorScheme(.dark)
+                .preferredColorScheme(state.appearanceDark ? .dark : .light)
                 .background(Theme.bg)
                 .onAppear {
+                    Theme.useDark = state.appearanceDark
                     MenuBarController.shared.install(state: state)
                 }
         }

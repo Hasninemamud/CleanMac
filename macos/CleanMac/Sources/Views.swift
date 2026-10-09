@@ -56,12 +56,12 @@ struct CleanView: View {
                             Text("AI Cleanup")
                                 .font(.system(size: 12, weight: .semibold))
                         }
-                        .foregroundColor(Theme.Mole.ink.opacity(0.85))
+                        .foregroundColor(Theme.ink.opacity(0.85))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 7)
-                        .background(Theme.Mole.surface.opacity(0.9))
+                        .background(Theme.surface.opacity(0.9))
                         .clipShape(Capsule())
-                        .overlay(Capsule().stroke(Theme.Mole.line, lineWidth: 1))
+                        .overlay(Capsule().stroke(Theme.line, lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                     .help("AI Cleanup & Care")
@@ -72,19 +72,22 @@ struct CleanView: View {
             Spacer(minLength: 8)
             ZStack {
                 Circle()
+                    .stroke(Theme.ink.opacity(Theme.useDark ? 0.18 : 0.22), lineWidth: 14)
+                    .frame(width: 196, height: 196)
+                Circle()
                     .fill(
                         RadialGradient(
                             colors: [
-                                Theme.Feature.clean.opacity(state.busy ? 0.28 : 0.14),
-                                Theme.Feature.pageBG(for: .clean).opacity(0),
+                                Theme.Feature.clean.opacity(state.busy ? 0.32 : 0.16),
+                                Theme.bg.opacity(0),
                             ],
                             center: .center,
                             startRadius: 20,
-                            endRadius: 150
+                            endRadius: 140
                         )
                     )
-                    .frame(width: 300, height: 300)
-                    .scaleEffect(state.busy ? 1.05 : 1)
+                    .frame(width: 280, height: 280)
+                    .scaleEffect(state.busy ? 1.04 : 1)
                     .animation(
                         state.busy
                             ? .easeInOut(duration: 1.1).repeatForever(autoreverses: true)
@@ -92,52 +95,49 @@ struct CleanView: View {
                         value: state.busy
                     )
                 EarthGlobeView(spinningFast: state.busy)
-                    .frame(width: 220, height: 220)
+                    .frame(width: 168, height: 168)
                     .offset(y: heroReady ? 0 : 18)
                     .opacity(heroReady ? 1 : 0)
             }
             .padding(.bottom, 28)
 
-            Text(state.cleanItems.isEmpty ? "Ready to scan" : "\(ByteFormat.disk(state.cleanTotalBytes)) found")
-                .font(Theme.Typeface.hero(34))
-                .foregroundColor(Theme.Mole.ink)
-                .contentTransition(.numericText())
-                .animation(Theme.Motion.meter, value: state.cleanTotalBytes)
-                .opacity(heroReady ? 1 : 0)
-                .offset(y: heroReady ? 0 : 10)
-
-            HStack(spacing: 6) {
-                if state.busy {
-                    ProgressView().controlSize(.mini).tint(.white)
-                    Text("Scanning…")
-                        .foregroundColor(Theme.Mole.muted)
-                } else if state.cleanItems.isEmpty {
-                    Text("Caches, installers, and leftovers")
-                        .foregroundColor(Theme.Mole.muted)
-                    Text("·").foregroundColor(Theme.Mole.muted.opacity(0.5))
-                    Button("Scan now") { Task { await state.scan() } }
-                        .buttonStyle(.plain)
-                        .foregroundColor(Theme.Feature.clean)
+            Group {
+                if state.cleanItems.isEmpty {
+                    Text("Clean your Mac")
+                        .font(Theme.Typeface.hero(36))
+                        .foregroundColor(Theme.ink)
+                    Text("Finds caches, logs, installers and other junk you can safely remove.")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(Theme.muted)
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: 420)
+                        .padding(.top, 8)
                 } else {
-                    Text("\(state.cleanItems.count) items in \(state.cleanCategories.count) categories")
-                        .foregroundColor(Theme.Mole.muted)
-                    Text("·").foregroundColor(Theme.Mole.muted.opacity(0.5))
-                    Button("Scan again") { Task { await state.scan() } }
-                        .buttonStyle(.plain)
-                        .foregroundColor(Theme.Feature.clean)
-                        .disabled(state.busy)
+                    Text(ByteFormat.disk(state.cleanTotalBytes))
+                        .font(Theme.Typeface.hero(40))
+                        .foregroundColor(Theme.ink)
+                        .contentTransition(.numericText())
+                        .animation(Theme.Motion.meter, value: state.cleanTotalBytes)
+                    Text("Found \(ByteFormat.disk(state.cleanTotalBytes)) of junk")
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(Theme.ink)
+                        .padding(.top, 4)
+                    Text(state.busy ? "Scanning…" : "Review what was found, then delete.")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(Theme.muted)
+                        .padding(.top, 6)
                 }
             }
-            .font(.system(size: 13, weight: .medium))
-            .padding(.top, 8)
-            .animation(.easeOut(duration: 0.25), value: state.busy)
-            .animation(.easeOut(duration: 0.25), value: state.cleanItems.count)
+            .opacity(heroReady ? 1 : 0)
+            .offset(y: heroReady ? 0 : 10)
 
-            Spacer(minLength: 24)
+            Spacer(minLength: 28)
 
             Button {
                 if state.cleanItems.isEmpty {
                     Task { await state.scan() }
+                } else if state.busy {
+                    return
                 } else {
                     if state.selected.isEmpty { state.selectRecommendedClean() }
                     withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
@@ -145,20 +145,28 @@ struct CleanView: View {
                     }
                 }
             } label: {
-                Text(state.cleanItems.isEmpty ? "Scan Mac" : "Review results")
+                Text(state.cleanItems.isEmpty ? "Scan Mac" : (state.busy ? "Scanning…" : "Review results"))
                     .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(Theme.Mole.ctaInk)
-                    .padding(.horizontal, 36)
+                    .foregroundColor(Theme.ctaInk)
+                    .padding(.horizontal, 40)
                     .padding(.vertical, 14)
-                    .background(Theme.Mole.cta)
+                    .background(Theme.ctaFill)
                     .clipShape(Capsule())
-                    .shadow(color: Color.white.opacity(0.28), radius: 22, y: 6)
+                    .shadow(color: Theme.ctaFill.opacity(0.35), radius: 16, y: 6)
             }
             .buttonStyle(PressableCapsuleStyle())
             .disabled(state.busy)
             .opacity(heroReady ? 1 : 0)
             .offset(y: heroReady ? 0 : 16)
-            .padding(.bottom, 36)
+
+            if !state.cleanItems.isEmpty {
+                Button("Scan again") { Task { await state.scan() } }
+                    .buttonStyle(SoftButtonStyle())
+                    .disabled(state.busy)
+                    .padding(.top, 12)
+            }
+
+            Spacer().frame(height: 36)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -166,69 +174,43 @@ struct CleanView: View {
     // MARK: - Review (category list)
 
     private func review(selected: Binding<Set<String>>) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .top) {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("Ready to clean")
-                        .font(.system(size: 28, weight: .bold))
-                        .foregroundColor(Theme.Mole.ink)
-                    Text(reviewSubtitle)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(Theme.Mole.muted)
-                        .lineLimit(2)
-                        .contentTransition(.opacity)
-                        .animation(.easeOut(duration: 0.2), value: state.selected.count)
+        VStack(spacing: 0) {
+            VStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .stroke(Theme.ink.opacity(0.18), lineWidth: 10)
+                        .frame(width: 88, height: 88)
+                    EarthGlobeView(spinningFast: false)
+                        .frame(width: 72, height: 72)
                 }
-                Spacer()
-                HStack(spacing: 8) {
-                    Button {
-                        Task { await state.scan() }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(Theme.Mole.muted)
-                            .frame(width: 34, height: 34)
-                            .background(Theme.Mole.surface)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Theme.Mole.line, lineWidth: 1))
-                            .rotationEffect(.degrees(state.busy ? 360 : 0))
-                            .animation(
-                                state.busy
-                                    ? .linear(duration: 0.9).repeatForever(autoreverses: false)
-                                    : .default,
-                                value: state.busy
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(state.busy)
-                    .help("Scan again")
+                .padding(.top, 8)
 
-                    Button {
-                        withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
-                            state.cleanPhase = .hero
-                        }
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(Theme.Mole.muted)
-                            .frame(width: 34, height: 34)
-                            .background(Theme.Mole.surface)
-                            .clipShape(Circle())
-                            .overlay(Circle().stroke(Theme.Mole.line, lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-                    .help("Back")
-                }
+                Text(ByteFormat.disk(state.cleanTotalBytes))
+                    .font(Theme.Typeface.hero(36))
+                    .foregroundColor(Theme.ink)
+                    .contentTransition(.numericText())
+                Text("Found \(ByteFormat.disk(state.cleanTotalBytes)) of junk")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(Theme.ink)
+                Text("Review what was found, then delete.")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(Theme.muted)
+
+                Button("Scan again") { Task { await state.scan() } }
+                    .buttonStyle(SoftButtonStyle())
+                    .disabled(state.busy)
+                    .padding(.top, 4)
             }
+            .frame(maxWidth: .infinity)
             .padding(.bottom, 16)
 
             ScrollView {
-                LazyVStack(spacing: 10) {
+                LazyVStack(spacing: 0) {
                     ForEach(Array(state.cleanCategories.enumerated()), id: \.element.id) { idx, cat in
                         CleanCategoryRow(
                             category: cat,
                             selected: selected,
-                            dark: true,
+                            dark: Theme.useDark,
                             expanded: Binding(
                                 get: { expanded.contains(cat.name) },
                                 set: { on in
@@ -238,22 +220,27 @@ struct CleanView: View {
                                 }
                             )
                         )
-                        .transition(.asymmetric(
-                            insertion: .opacity.combined(with: .offset(y: 10)),
-                            removal: .opacity
-                        ))
-                        .animation(
-                            .spring(response: 0.4, dampingFraction: 0.88).delay(Double(idx) * 0.04),
-                            value: state.cleanCategories.count
-                        )
+                        if idx < state.cleanCategories.count - 1 {
+                            Divider().background(Theme.line)
+                        }
                     }
                 }
-                .padding(.bottom, 8)
+                .padding(.horizontal, 4)
+                .background(Theme.surface)
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Theme.line, lineWidth: 1)
+                )
+                .shadow(color: Color.black.opacity(Theme.useDark ? 0.25 : 0.06), radius: 12, y: 4)
+                .padding(.horizontal, 20)
+                .padding(.bottom, 12)
             }
 
             reviewFooter
                 .transition(.move(edge: .bottom).combined(with: .opacity))
         }
+        .padding(.horizontal, 8)
     }
 
     private var reviewSubtitle: String {
@@ -289,43 +276,46 @@ struct CleanView: View {
     }
 
     private var reviewFooter: some View {
-        HStack(spacing: 12) {
-            HStack(spacing: 8) {
-                Text("\(state.selected.count) selected")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(Theme.Mole.ink)
-                Text("·").foregroundColor(Theme.Mole.muted.opacity(0.5))
+        HStack(spacing: 14) {
+            HStack(spacing: 14) {
                 Button("All") { state.selectAllClean() }
-                    .buttonStyle(.plain)
-                Text("·").foregroundColor(Theme.Mole.muted.opacity(0.5))
                 Button("None") { state.selected.removeAll() }
-                    .buttonStyle(.plain)
-                Text("·").foregroundColor(Theme.Mole.muted.opacity(0.5))
                 Button("Recommended") { state.selectRecommendedClean() }
-                    .buttonStyle(.plain)
             }
-            .font(.system(size: 12, weight: .semibold))
-            .foregroundColor(Theme.Mole.link)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(Theme.ink.opacity(0.75))
+            .buttonStyle(.plain)
 
             Spacer()
+
+            Text("\(state.selected.count) selected · \(ByteFormat.disk(state.selectedBytes))")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(Theme.muted)
 
             Button {
                 state.confirmTrash = true
             } label: {
-                Text("Delete permanently · \(ByteFormat.disk(state.selectedBytes))")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(Theme.Mole.ctaInk)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 12)
-                    .background(state.selected.isEmpty ? Theme.Mole.surface2 : Theme.Mole.cta)
-                    .clipShape(Capsule())
-                    .animation(.easeOut(duration: 0.2), value: state.selectedBytes)
+                HStack(spacing: 8) {
+                    Image(systemName: "trash.fill")
+                        .font(.system(size: 12, weight: .bold))
+                    Text("Delete permanently")
+                        .font(.system(size: 13, weight: .bold))
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 18)
+                .padding(.vertical, 11)
+                .background(state.selected.isEmpty ? Theme.muted.opacity(0.35) : Theme.danger)
+                .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
             .buttonStyle(PressableCapsuleStyle())
             .disabled(state.selected.isEmpty || state.busy)
         }
-        .padding(.top, 12)
-        .padding(.bottom, 4)
+        .padding(.horizontal, 20)
+        .padding(.vertical, 14)
+        .background(Theme.footerBar)
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.horizontal, 16)
+        .padding(.bottom, 12)
     }
 }
 
@@ -453,11 +443,12 @@ struct CleanCategoryRow: View {
     var dark = false
     @Binding var expanded: Bool
 
-    private var ink: Color { dark ? Theme.Mole.ink : Theme.ink }
-    private var muted: Color { dark ? Theme.Mole.muted : Theme.muted }
-    private var surface: Color { dark ? Theme.Mole.surface : Theme.surface }
-    private var line: Color { dark ? Theme.Mole.line : Theme.line }
-    private var check: Color { dark ? Theme.Mole.link : Theme.ok }
+    private var ink: Color { Theme.ink }
+    private var muted: Color { Theme.muted }
+    private var check: Color { Theme.ink.opacity(0.85) }
+    private var recommended: Bool {
+        category.items.contains { $0.safety == "safe" }
+    }
 
     private var selectablePaths: [String] { category.selectable.map(\.path) }
     private var selectedCount: Int { selectablePaths.filter { selected.contains($0) }.count }
@@ -477,9 +468,9 @@ struct CleanCategoryRow: View {
                 Button {
                     toggleCategory()
                 } label: {
-                    Image(systemName: checkboxSymbol)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(triState == false ? muted : check)
+                    Image(systemName: circleCheckboxSymbol)
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(triState == false ? muted.opacity(0.55) : check)
                 }
                 .buttonStyle(.plain)
                 .disabled(selectablePaths.isEmpty)
@@ -489,9 +480,14 @@ struct CleanCategoryRow: View {
                         Text(category.name)
                             .font(.system(size: 14, weight: .bold))
                             .foregroundColor(ink)
-                        Text("\(selectedCount)/\(category.items.count) selected")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(muted)
+                        if recommended {
+                            Text("Recommended")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundColor(Theme.ok)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3)
+                                .overlay(Capsule().stroke(Theme.ok.opacity(0.55), lineWidth: 1))
+                        }
                     }
                     Text(category.blurb)
                         .font(.system(size: 11, weight: .medium))
@@ -501,16 +497,10 @@ struct CleanCategoryRow: View {
 
                 Spacer(minLength: 8)
 
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(ByteFormat.string(selectedBytes))
-                        .font(.system(size: 14, weight: .bold, design: .rounded))
-                        .foregroundColor(ink)
-                        .monospacedDigit()
-                    Text("/ \(ByteFormat.string(category.byteSize))")
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundColor(muted)
-                        .monospacedDigit()
-                }
+                Text(ByteFormat.disk(category.byteSize))
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundColor(ink)
+                    .monospacedDigit()
 
                 Button {
                     withAnimation(.easeInOut(duration: 0.18)) { expanded.toggle() }
@@ -522,7 +512,7 @@ struct CleanCategoryRow: View {
                 }
                 .buttonStyle(.plain)
             }
-            .padding(.horizontal, 14)
+            .padding(.horizontal, 16)
             .padding(.vertical, 14)
             .contentShape(Rectangle())
             .onTapGesture {
@@ -530,29 +520,24 @@ struct CleanCategoryRow: View {
             }
 
             if expanded {
-                Divider().background(line)
+                Divider().background(Theme.line)
                 ForEach(category.items) { item in
                     ItemRow(item: item, selected: $selected, dark: dark)
-                    Divider().background(line)
+                    Divider().background(Theme.line)
                 }
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-        .background(surface)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(line, lineWidth: 1)
-        )
+        .background(Color.clear)
         .animation(.spring(response: 0.35, dampingFraction: 0.88), value: expanded)
         .animation(.easeOut(duration: 0.2), value: selectedCount)
     }
 
-    private var checkboxSymbol: String {
+    private var circleCheckboxSymbol: String {
         switch triState {
-        case .some(true): return "checkmark.square.fill"
-        case .some(false): return "square"
-        case .none: return "minus.square.fill"
+        case .some(true): return "checkmark.circle.fill"
+        case .some(false): return "circle"
+        case .none: return "circle.lefthalf.filled"
         }
     }
 

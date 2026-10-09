@@ -21,8 +21,10 @@ struct ContentView: View {
         .frame(minWidth: 920, idealWidth: 1020, maxWidth: 1280,
                minHeight: 600, idealHeight: 680, maxHeight: 900)
         .background(PlanetCanvas(section: state.section))
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(state.appearanceDark ? .dark : .light)
+        .id(state.appearanceTick)
         .animation(Theme.Motion.section, value: state.section)
+        .animation(.easeInOut(duration: 0.28), value: state.appearanceTick)
         .onChange(of: state.section) { _, section in
             // Remounted pages also .task; Status always recalculates live metrics.
             if section == .status {
@@ -57,50 +59,60 @@ struct ContentView: View {
             CleanScreenView { state.showCleanScreen = false }
                 .frame(minWidth: 800, minHeight: 600)
         }
-        .onAppear { NSApp.appearance = NSAppearance(named: .darkAqua) }
+        .onAppear {
+            Theme.useDark = state.appearanceDark
+            NSApp.appearance = NSAppearance(named: state.appearanceDark ? .darkAqua : .aqua)
+        }
     }
 
     private var topBar: some View {
         let accent = Theme.Feature.accent(for: state.section)
         return ZStack {
-            Theme.Feature.rail(for: state.section)
+            Theme.rail
                 .animation(.easeInOut(duration: 0.3), value: state.section)
-            HStack(spacing: 12) {
+            HStack(spacing: 10) {
                 Spacer(minLength: 8)
+                if state.busy {
+                    ProgressView().controlSize(.mini).tint(accent)
+                }
+                Text(state.statusLine)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(state.busy ? accent : Theme.muted)
+                    .lineLimit(1)
+                    .frame(maxWidth: 120, alignment: .trailing)
                 Button {
                     state.showSettings = true
                     Task { await state.loadSettingsData() }
                 } label: {
                     Image(systemName: "gearshape")
+                        .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(Theme.muted)
                 }
                 .buttonStyle(.plain)
                 .help("Settings")
-
-                Text(state.statusLine)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(state.busy ? accent : Theme.muted)
-                    .lineLimit(1)
-                    .frame(maxWidth: 140, alignment: .trailing)
-                    .contentTransition(.opacity)
-
-                if state.busy {
-                    ProgressView().controlSize(.mini).tint(accent)
-                        .transition(.opacity.combined(with: .scale))
+                Button {
+                    withAnimation(.easeInOut(duration: 0.28)) {
+                        state.appearanceDark.toggle()
+                    }
+                } label: {
+                    Image(systemName: state.appearanceDark ? "sun.max.fill" : "moon.fill")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(Theme.muted)
+                        .symbolEffect(.bounce, value: state.appearanceTick)
                 }
+                .buttonStyle(.plain)
+                .help(state.appearanceDark ? "Light theme" : "Dark theme")
             }
-            .padding(.leading, 72)
             .padding(.trailing, 16)
             .animation(.easeOut(duration: 0.2), value: state.busy)
 
-            // Mole: centered nav capsule with logo + white selected pill
+            // Centered planet nav (mock: icon + label pills)
             HStack(spacing: 2) {
-                BrandLogo(size: 22)
-                    .padding(.trailing, 4)
                 ForEach(AppState.NavSection.allCases) { s in
                     SegmentPill(
                         title: s.rawValue,
                         selected: state.section == s,
+                        accent: Theme.Feature.accent(for: s),
                         namespace: navNS,
                         matchID: "mainNav"
                     ) {
@@ -114,26 +126,19 @@ struct ContentView: View {
                     }
                 }
             }
-            .padding(.leading, 6)
-            .padding(.trailing, 3)
+            .padding(.horizontal, 4)
             .padding(.vertical, 3)
             .background(
                 Capsule()
-                    .fill(Color.white.opacity(0.08))
-                    .overlay(Capsule().stroke(Color.white.opacity(0.10), lineWidth: 1))
+                    .fill(Theme.useDark ? Color.white.opacity(0.06) : Color.white.opacity(0.55))
+                    .overlay(Capsule().stroke(Theme.line, lineWidth: 1))
             )
             .animation(Theme.Motion.snappy, value: state.section)
         }
         .frame(height: 52)
         .overlay(alignment: .bottom) {
             Rectangle()
-                .fill(
-                    LinearGradient(
-                        colors: [accent.opacity(0.35), Color.white.opacity(0.06), Color.clear],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
+                .fill(Theme.line)
                 .frame(height: 1)
         }
     }

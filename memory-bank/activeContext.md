@@ -1,5 +1,6 @@
 # Active Context
 
+- Agent rules: `.cursor/rules/karpathy-guidelines.mdc` (alwaysApply) from [andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills); alongside `ponytail.mdc`
 - **Stack:** Go CLI + shell + SwiftUI only (Electron removed)
 - Nav: Clean · Software · Analyze · Optimize · Status (+ Settings, Menu Bar)
 - Junk/cache cleanup permanently deletes (removeItem); Uninstall + Analyze still use Trash; Optimize already os.RemoveAll

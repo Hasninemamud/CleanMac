@@ -51,7 +51,7 @@ struct SettingsView: View {
                 )
             }
         )
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(state.appearanceDark ? .dark : .light)
         .task { await state.loadSettingsData() }
     }
 

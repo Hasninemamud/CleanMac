@@ -573,24 +573,24 @@ struct StatusView: View {
             Group {
                 switch chart {
                 case .bars:
-                    BarChart(values: history.isEmpty ? [0.1, 0.2, 0.15, 0.3] : history, color: tint)
+                    BarChart(values: history, color: tint)
                 case .line:
-                    Sparkline(values: history.isEmpty ? [0.2, 0.25, 0.22, 0.3, 0.28] : history, color: tint)
-                        .padding(.vertical, 4)
+                    Sparkline(values: history, color: tint, lineWidth: 1.8)
                 case .bar:
                     GeometryReader { geo in
+                        let p = min(max(history.last ?? 0, 0), 1)
                         ZStack(alignment: .leading) {
                             Capsule().fill(Theme.Feature.surface2(for: .status))
                             Capsule()
                                 .fill(LinearGradient(colors: [tint.opacity(0.7), tint], startPoint: .leading, endPoint: .trailing))
-                                .frame(width: max(6, geo.size.width * CGFloat(history.last ?? 0.3)))
-                                .animation(Theme.Motion.meter, value: history.last)
+                                .frame(width: max(6, geo.size.width * p))
+                                .animation(Theme.Motion.meter, value: p)
                         }
                     }
                 }
             }
-            .frame(height: chart == .bar ? 8 : 28)
-            .frame(maxHeight: .infinity, alignment: .center)
+            .frame(height: chart == .bar ? 8 : 32)
+            .clipped()
 
             Text(footer)
                 .font(.system(size: 10, weight: .medium))
@@ -847,14 +847,18 @@ struct StatusView: View {
 
     private func pushHistory() {
         guard let m = state.metrics else { return }
-        historyCPU.append(min((m.cpuPercent ?? 0) / 100, 1))
-        historyGPU.append(min((m.gpuPercent ?? 0) / 100, 1))
-        historyMem.append(memRatio(m))
-        historyDisk.append(diskRatio(m))
-        historyNet.append(min(((m.netDownKBs ?? 0) + (m.netUpKBs ?? 0)) / 800, 1))
-        historyBatt.append(Double(m.batteryPct ?? 0) / 100)
-        trim(&historyCPU); trim(&historyGPU); trim(&historyMem)
-        trim(&historyDisk); trim(&historyNet); trim(&historyBatt)
+        func grow(_ hist: inout [Double], _ v: Double) {
+            let clamped = min(max(v, 0), 1)
+            if hist.isEmpty { hist = Array(repeating: clamped, count: 8) }
+            hist.append(clamped)
+            trim(&hist)
+        }
+        grow(&historyCPU, (m.cpuPercent ?? 0) / 100)
+        grow(&historyGPU, (m.gpuPercent ?? 0) / 100)
+        grow(&historyMem, memRatio(m))
+        grow(&historyDisk, diskRatio(m))
+        grow(&historyNet, ((m.netDownKBs ?? 0) + (m.netUpKBs ?? 0)) / 800)
+        grow(&historyBatt, Double(m.batteryPct ?? 0) / 100)
     }
 
     private func trim(_ a: inout [Double]) {
@@ -933,20 +937,30 @@ struct BarChart: View {
     let values: [Double]
     let color: Color
 
+    private var samples: [Double] {
+        let raw = values.map { min(max($0, 0), 1) }
+        if raw.isEmpty { return Array(repeating: 0.05, count: 8) }
+        // Cap count so bars stay readable in narrow cards.
+        return Array(raw.suffix(16))
+    }
+
     var body: some View {
         GeometryReader { geo in
-            let n = max(values.count, 1)
-            let gap: CGFloat = 2
-            let w = max(2, (geo.size.width - gap * CGFloat(n - 1)) / CGFloat(n))
+            let vals = samples
+            let n = vals.count
+            let gap: CGFloat = 1.5
+            let w = max(3, (geo.size.width - gap * CGFloat(n - 1)) / CGFloat(n))
             HStack(alignment: .bottom, spacing: gap) {
-                ForEach(Array(values.enumerated()), id: \.offset) { _, v in
-                    RoundedRectangle(cornerRadius: 2, style: .continuous)
-                        .fill(color.opacity(0.85))
-                        .frame(width: w, height: max(3, geo.size.height * min(max(v, 0), 1)))
+                ForEach(Array(vals.enumerated()), id: \.offset) { _, v in
+                    RoundedRectangle(cornerRadius: 1.5, style: .continuous)
+                        .fill(color.opacity(0.35 + 0.55 * v))
+                        .frame(width: w, height: max(2, geo.size.height * CGFloat(v)))
                 }
             }
-            .frame(maxHeight: .infinity, alignment: .bottom)
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .bottom)
+            .clipped()
         }
+        .accessibilityHidden(true)
     }
 }
 

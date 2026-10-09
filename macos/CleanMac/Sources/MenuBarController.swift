@@ -1,6 +1,22 @@
 import AppKit
 import SwiftUI
 
+/// Live HUD state — one instance; never rebuild NSHostingController on poll.
+@Observable
+@MainActor
+private final class MenuBarHUDModel {
+    var metrics: StatusSnapshot?
+    var keepAwake = false
+    var keepAwakeMinutes = 0
+    var cleanHistory = CleanHistoryStats()
+    var histCPU: [Double] = []
+    var histGPU: [Double] = []
+    var histMem: [Double] = []
+    var histDisk: [Double] = []
+    var histNet: [Double] = []
+    var refreshing = false
+}
+
 @MainActor
 final class MenuBarController: NSObject {
     static let shared = MenuBarController()
@@ -9,15 +25,9 @@ final class MenuBarController: NSObject {
     private var state: AppState?
     private var keepAwakeStarted: Date?
     private var popover: NSPopover?
-    private var eventMonitor: Any?
+    private var hosting: NSHostingController<MenuBarPopoverView>?
     private var liveTimer: Timer?
-
-    // Sparkline ring buffers (survive contentViewController rebuilds).
-    private var histCPU: [Double] = []
-    private var histGPU: [Double] = []
-    private var histMem: [Double] = []
-    private var histDisk: [Double] = []
-    private var histNet: [Double] = []
+    private let hud = MenuBarHUDModel()
 
     func install(state: AppState) {
         self.state = state
@@ -31,6 +41,7 @@ final class MenuBarController: NSObject {
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
         }
         statusItem = item
+        syncChrome()
         Task { await refreshStatus() }
     }
 
@@ -43,74 +54,64 @@ final class MenuBarController: NSObject {
             showContextMenu()
             return
         }
-        Task { @MainActor in
-            await refreshStatus()
-            openPopover()
-        }
+        // Open immediately with cached metrics — refresh in background (no blink wait).
+        openPopover()
+        Task { await refreshStatus() }
     }
 
     private func openPopover() {
         guard let button = statusItem?.button else { return }
-        let pop = NSPopover()
-        pop.behavior = .transient
-        pop.animates = true
-        pop.contentSize = NSSize(width: 380, height: 640)
-        pop.contentViewController = NSHostingController(rootView: popoverRoot())
-        popover = pop
-        pop.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-        eventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.leftMouseDown, .rightMouseDown]) { [weak self] _ in
-            self?.closePopover()
+        syncChrome()
+        if popover == nil {
+            let pop = NSPopover()
+            pop.behavior = .transient
+            pop.animates = true
+            pop.contentSize = NSSize(width: 380, height: 720)
+            let root = MenuBarPopoverView(
+                model: hud,
+                onOpen: { [weak self] in self?.openMain(); self?.closePopover() },
+                onRefresh: { [weak self] in Task { await self?.refreshStatus() } },
+                onKeepAwake: { [weak self] in
+                    self?.keepAwake()
+                    self?.syncChrome()
+                },
+                onCleanScreen: { [weak self] in self?.cleanScreen(); self?.closePopover() },
+                onQuitProcess: { [weak self] pid in self?.state?.quitProcess(pid: pid) },
+                onForceQuitProcess: { [weak self] pid in self?.state?.forceQuitProcess(pid: pid) },
+                onCopyPath: { [weak self] path in self?.state?.copyProcessPath(path) },
+                onQuit: { [weak self] in self?.quit() }
+            )
+            let host = NSHostingController(rootView: root)
+            hosting = host
+            pop.contentViewController = host
+            popover = pop
         }
+        guard let pop = popover, !pop.isShown else { return }
+        pop.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
         liveTimer?.invalidate()
-        liveTimer = Timer.scheduledTimer(withTimeInterval: 2.5, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 3.0, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 guard let self, self.popover?.isShown == true else { return }
                 await self.refreshStatus()
-                self.popover?.contentViewController = NSHostingController(rootView: self.popoverRoot())
             }
         }
-    }
-
-    private func popoverRoot() -> MenuBarPopoverView {
-        MenuBarPopoverView(
-            metrics: state?.metrics,
-            keepAwake: state?.keepAwake ?? false,
-            keepAwakeMinutes: keepAwakeMinutes(),
-            cleanHistory: CleanHistoryStats.load(),
-            histCPU: histCPU,
-            histGPU: histGPU,
-            histMem: histMem,
-            histDisk: histDisk,
-            histNet: histNet,
-            onOpen: { [weak self] in self?.openMain(); self?.closePopover() },
-            onRefresh: { [weak self] in
-                Task { @MainActor in
-                    guard let self else { return }
-                    await self.refreshStatus()
-                    self.popover?.contentViewController = NSHostingController(rootView: self.popoverRoot())
-                }
-            },
-            onKeepAwake: { [weak self] in
-                guard let self else { return }
-                self.keepAwake()
-                self.popover?.contentViewController = NSHostingController(rootView: self.popoverRoot())
-            },
-            onCleanScreen: { [weak self] in self?.cleanScreen(); self?.closePopover() },
-            onQuitProcess: { [weak self] pid in self?.state?.quitProcess(pid: pid) },
-            onForceQuitProcess: { [weak self] pid in self?.state?.forceQuitProcess(pid: pid) },
-            onCopyPath: { [weak self] path in self?.state?.copyProcessPath(path) },
-            onQuit: { [weak self] in self?.quit() }
-        )
+        RunLoop.main.add(timer, forMode: .common)
+        liveTimer = timer
     }
 
     private func closePopover() {
         liveTimer?.invalidate()
         liveTimer = nil
         popover?.performClose(nil)
-        popover = nil
-        if let monitor = eventMonitor {
-            NSEvent.removeMonitor(monitor)
-            eventMonitor = nil
+        // Keep popover + hosting alive so the next open is instant and doesn't remount.
+    }
+
+    private func syncChrome() {
+        hud.keepAwake = state?.keepAwake ?? false
+        hud.keepAwakeMinutes = keepAwakeMinutes()
+        hud.cleanHistory = CleanHistoryStats.load()
+        if let m = state?.metrics {
+            applyMetrics(m, animated: false)
         }
     }
 
@@ -153,6 +154,8 @@ final class MenuBarController: NSObject {
         } else if state?.keepAwake != true {
             keepAwakeStarted = nil
         }
+        hud.keepAwake = state?.keepAwake ?? false
+        hud.keepAwakeMinutes = keepAwakeMinutes()
     }
 
     @objc private func cleanScreen() {
@@ -166,30 +169,56 @@ final class MenuBarController: NSObject {
 
     private func refreshStatus() async {
         guard let state else { return }
-        let prev = state.section
-        state.section = .status
-        await state.scan(quiet: true)
-        state.section = prev
+        if hud.refreshing { return }
+        hud.refreshing = true
+        defer { hud.refreshing = false }
+        await state.fetchStatusMetrics()
         if let m = state.metrics {
-            pushHistory(m)
+            applyMetrics(m, animated: true)
             if let button = statusItem?.button {
                 let cpu = Int((m.cpuPercent ?? 0).rounded())
                 let score = m.healthScore ?? 0
                 button.title = " \(score) · \(cpu)%"
             }
         }
+        hud.keepAwake = state.keepAwake
+        hud.keepAwakeMinutes = keepAwakeMinutes()
+        hud.cleanHistory = CleanHistoryStats.load()
     }
 
-    private func pushHistory(_ m: StatusSnapshot) {
+    private func applyMetrics(_ m: StatusSnapshot, animated: Bool) {
         let memT = m.memTotal > 0 ? Double(m.memTotal) : Double(ProcessInfo.processInfo.physicalMemory)
         let memR = memT > 0 ? min(Double(m.memUsed) / memT, 1) : 0
         let diskR = m.diskTotal > 0 ? min(Double(m.diskUsed) / Double(m.diskTotal), 1) : 0
-        histCPU.append(min((m.cpuPercent ?? 0) / 100, 1))
-        histGPU.append(min((m.gpuPercent ?? 0) / 100, 1))
-        histMem.append(memR)
-        histDisk.append(diskR)
-        histNet.append(min(((m.netDownKBs ?? 0) + (m.netUpKBs ?? 0)) / 800, 1))
-        trim(&histCPU); trim(&histGPU); trim(&histMem); trim(&histDisk); trim(&histNet)
+        let cpuV = min((m.cpuPercent ?? 0) / 100, 1)
+        let gpuV = min((m.gpuPercent ?? 0) / 100, 1)
+        let netV = min(((m.netDownKBs ?? 0) + (m.netUpKBs ?? 0)) / 800, 1)
+        // Seed a short flat baseline so first open isn't an empty/jagged single-point chart.
+        func grow(_ hist: [Double], _ v: Double) -> [Double] {
+            var a = hist.isEmpty ? Array(repeating: v, count: 8) : hist
+            a.append(v)
+            trim(&a)
+            return a
+        }
+        let cpu = grow(hud.histCPU, cpuV)
+        let gpu = grow(hud.histGPU, gpuV)
+        let mem = grow(hud.histMem, memR)
+        let disk = grow(hud.histDisk, diskR)
+        let net = grow(hud.histNet, netV)
+
+        let apply = {
+            self.hud.metrics = m
+            self.hud.histCPU = cpu
+            self.hud.histGPU = gpu
+            self.hud.histMem = mem
+            self.hud.histDisk = disk
+            self.hud.histNet = net
+        }
+        if animated {
+            withAnimation(.easeInOut(duration: 0.28)) { apply() }
+        } else {
+            apply()
+        }
     }
 
     private func trim(_ a: inout [Double]) {
@@ -243,15 +272,7 @@ private enum PopDash {
 }
 
 private struct MenuBarPopoverView: View {
-    let metrics: StatusSnapshot?
-    let keepAwake: Bool
-    let keepAwakeMinutes: Int
-    let cleanHistory: CleanHistoryStats
-    let histCPU: [Double]
-    let histGPU: [Double]
-    let histMem: [Double]
-    let histDisk: [Double]
-    let histNet: [Double]
+    @Bindable var model: MenuBarHUDModel
     let onOpen: () -> Void
     let onRefresh: () -> Void
     let onKeepAwake: () -> Void
@@ -260,6 +281,16 @@ private struct MenuBarPopoverView: View {
     let onForceQuitProcess: (Int) -> Void
     let onCopyPath: (String?) -> Void
     let onQuit: () -> Void
+
+    private var metrics: StatusSnapshot? { model.metrics }
+    private var keepAwake: Bool { model.keepAwake }
+    private var keepAwakeMinutes: Int { model.keepAwakeMinutes }
+    private var cleanHistory: CleanHistoryStats { model.cleanHistory }
+    private var histCPU: [Double] { model.histCPU }
+    private var histGPU: [Double] { model.histGPU }
+    private var histMem: [Double] { model.histMem }
+    private var histDisk: [Double] { model.histDisk }
+    private var histNet: [Double] { model.histNet }
 
     private var score: Int { metrics?.healthScore ?? 0 }
     private var label: String { metrics?.healthLabel ?? "—" }
@@ -290,20 +321,23 @@ private struct MenuBarPopoverView: View {
             .padding(14)
         }
         .frame(width: 380)
-        .frame(maxHeight: 640)
+        .frame(maxHeight: 700)
         .background(
             ZStack {
-                PopDash.glass
-                Theme.Feature.pageBG(for: .status).opacity(0.92)
+                Theme.bg
+                Theme.surface.opacity(Theme.useDark ? 0.55 : 0.92)
                 RadialGradient(
-                    colors: [PopDash.amber.opacity(0.10), .clear],
+                    colors: [PopDash.amber.opacity(Theme.useDark ? 0.10 : 0.06), .clear],
                     center: UnitPoint(x: 0.9, y: 0.05),
                     startRadius: 2,
                     endRadius: 260
                 )
             }
         )
-        .preferredColorScheme(.dark)
+        .preferredColorScheme(Theme.useDark ? .dark : .light)
+        .animation(.easeInOut(duration: 0.28), value: score)
+        .animation(.easeInOut(duration: 0.28), value: metrics?.cpuPercent)
+        .animation(.easeInOut(duration: 0.28), value: metrics?.gpuPercent)
     }
 
     // MARK: Header
@@ -334,9 +368,17 @@ private struct MenuBarPopoverView: View {
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(Theme.muted)
+                        .rotationEffect(.degrees(model.refreshing ? 360 : 0))
+                        .animation(
+                            model.refreshing
+                                ? .linear(duration: 0.7).repeatForever(autoreverses: false)
+                                : .default,
+                            value: model.refreshing
+                        )
                         .padding(6)
-                        .background(Circle().fill(Color.white.opacity(0.06)))
+                        .background(Circle().fill(Theme.line.opacity(0.6)))
                 }
+                .disabled(model.refreshing)
                 .buttonStyle(.plain)
                 .help("Refresh")
             }
@@ -458,24 +500,24 @@ private struct MenuBarPopoverView: View {
             Group {
                 switch chart {
                 case .bars:
-                    BarChart(values: history.isEmpty ? [0.12, 0.18, 0.14, 0.22, 0.2] : history, color: tint)
+                    BarChart(values: history, color: tint)
                 case .line:
-                    Sparkline(values: history.isEmpty ? [0.15, 0.2, 0.18, 0.28, 0.22] : history, color: tint)
-                        .frame(height: 22)
+                    Sparkline(values: history, color: tint, lineWidth: 1.5)
                 case .bar:
                     GeometryReader { geo in
+                        let p = min(max(history.last ?? 0, 0), 1)
                         ZStack(alignment: .leading) {
-                            Capsule().fill(Color.white.opacity(0.08))
+                            Capsule().fill(Theme.line.opacity(0.8))
                             Capsule()
                                 .fill(LinearGradient(colors: [tint.opacity(0.65), tint], startPoint: .leading, endPoint: .trailing))
-                                .frame(width: max(4, geo.size.width * CGFloat(history.last ?? 0.2)))
-                                .animation(Theme.Motion.meter, value: history.last)
+                                .frame(width: max(4, geo.size.width * p))
+                                .animation(Theme.Motion.meter, value: p)
                         }
                     }
-                    .frame(height: 6)
                 }
             }
-            .frame(height: chart == .bar ? 6 : 22)
+            .frame(height: chart == .bar ? 6 : 26)
+            .clipped()
 
             Text(footer)
                 .font(.system(size: 10, weight: .medium))
