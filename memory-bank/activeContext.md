@@ -4,7 +4,7 @@
 - **Stack:** Go CLI + shell + SwiftUI only (Electron removed)
 - Nav: Clean · Software · Analyze · Optimize · Status (+ Settings, Menu Bar)
 - Junk/cache cleanup permanently deletes (removeItem); Uninstall + Analyze still use Trash; Optimize already os.RemoveAll
-- Version **2.2.13** — Status metrics fixes, modern theme/animations, permanent junk delete
+- Version **2.2.14** — Cream/chocolate themes, AM-aligned metrics, permanent junk delete, smoother menu bar HUD/charts
 - Disk Status uses APFS **container** totals + **decimal GB**
 - Whitelist + operations log; junk uses Mole 10-category taxonomy (+ Trash last)
 - AI Cleanup (Moon) on Clean when AI folders detected; `cleanmac ai detect|scan`
