@@ -32,9 +32,8 @@ struct CleanView: View {
         .pageEnter()
         .task {
             withAnimation(.easeOut(duration: 0.55)) { heroReady = true }
-            if !state.busy {
-                // Recalculate PathSize-backed junk totals on every Clean visit.
-                await state.scan(quiet: !state.cleanItems.isEmpty, force: true)
+            if !state.busy && state.cleanItems.isEmpty {
+                await state.scan()
             }
         }
     }

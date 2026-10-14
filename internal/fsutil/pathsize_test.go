@@ -1,10 +1,12 @@
 package fsutil
 
 import (
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Hasninemamud/CleanMac/internal/safety"
 )
@@ -34,6 +36,25 @@ func TestPathSizeMatchesDuSkP(t *testing.T) {
 	}
 	if got < want && float64(diff) > float64(want)*0.05 {
 		t.Fatalf("PathSize %d under-reports du -skP %d", got, want)
+	}
+}
+
+func TestDuChildrenListsKids(t *testing.T) {
+	dir := t.TempDir()
+	a := dir + "/a"
+	b := dir + "/b"
+	if err := os.Mkdir(a, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(b, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(a+"/f", make([]byte, 4096), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	got := DuChildren(dir, 5*time.Second)
+	if got[a] <= 0 || got[b] < 0 {
+		t.Fatalf("DuChildren=%v", got)
 	}
 }
 

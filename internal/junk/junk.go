@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Hasninemamud/CleanMac/internal/fsutil"
 	"github.com/Hasninemamud/CleanMac/internal/jsonout"
@@ -238,7 +239,7 @@ func cacheHolderRunning(cacheName string, running map[string]bool) bool {
 func enumerateTopLevel(target string, rule Rule, running map[string]bool) []jsonout.Item {
 	entries, err := os.ReadDir(target)
 	if err != nil {
-		size := fsutil.PathSize(target)
+		size := fsutil.PathSizeQuick(target)
 		if size <= 0 {
 			return nil
 		}
@@ -301,18 +302,23 @@ func enumerateTopLevel(target string, rule Rule, running map[string]bool) []json
 		cands = append(cands, c)
 	}
 
-	// ponytail: parallel size walk; ceiling 8 workers.
+	// One du -d 1 of the parent instead of N unbounded du of each cache folder.
+	children := fsutil.DuChildren(target, 15*time.Second)
 	sem := make(chan struct{}, 8)
 	var wg sync.WaitGroup
 	for i := range cands {
 		if !cands[i].isDir {
 			continue
 		}
+		if n, ok := children[cands[i].full]; ok {
+			cands[i].size = n
+			continue
+		}
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
 			sem <- struct{}{}
-			cands[i].size = fsutil.PathSize(cands[i].full)
+			cands[i].size = fsutil.PathSizeQuick(cands[i].full)
 			<-sem
 		}(i)
 	}

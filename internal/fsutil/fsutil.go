@@ -102,6 +102,48 @@ func DuBytesTimeout(path string, timeout time.Duration) (int64, bool) {
 	return kb * 1024, true
 }
 
+// DuChildren one `du -kPd 1` for immediate children (bytes). Avoids N parallel du of Caches.
+func DuChildren(dir string, timeout time.Duration) map[string]int64 {
+	out := map[string]int64{}
+	if dir == "" || !Exists(dir) {
+		return out
+	}
+	if timeout <= 0 {
+		timeout = 15 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "/usr/bin/du", "-kPd", "1", dir)
+	raw, err := cmd.Output()
+	if err != nil && len(raw) == 0 {
+		return out
+	}
+	clean := filepath.Clean(dir)
+	for _, line := range strings.Split(string(raw), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		sp := strings.IndexByte(line, '\t')
+		if sp < 0 {
+			sp = strings.IndexByte(line, ' ')
+		}
+		if sp < 1 {
+			continue
+		}
+		kb, err := strconv.ParseInt(strings.TrimSpace(line[:sp]), 10, 64)
+		if err != nil || kb < 0 {
+			continue
+		}
+		p := filepath.Clean(strings.TrimSpace(line[sp:]))
+		if p == "" || p == clean {
+			continue
+		}
+		out[p] = kb * 1024
+	}
+	return out
+}
+
 // PathSizeQuick sizes dirs for Analyze UI: du with a short timeout, then capped walk.
 // Keeps Map/Overview responsive on huge Library trees.
 func PathSizeQuick(path string) int64 {
@@ -124,7 +166,7 @@ func PathSizeQuick(path string) int64 {
 	if !info.IsDir() {
 		return 0
 	}
-	if n, ok := DuBytesTimeout(path, 8*time.Second); ok {
+	if n, ok := DuBytesTimeout(path, 3*time.Second); ok {
 		return n
 	}
 	return DirectorySizeOpts(path, 20_000, safety.Opts{})
