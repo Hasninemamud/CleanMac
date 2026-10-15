@@ -319,6 +319,14 @@ final class CLIExecutor: @unchecked Sendable {
         return path
     }
 
+    func kernelVersion() async -> String? {
+        guard let bin = try? ensureBinary() else { return nil }
+        guard let data = try? await runRaw([bin, "version"], track: false) else { return nil }
+        let s = String(data: data, encoding: .utf8)?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (s?.isEmpty == false) ? s : nil
+    }
+
     func cancel() {
         lock.lock()
         let proc = currentProcess

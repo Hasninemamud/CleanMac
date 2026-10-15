@@ -5,6 +5,7 @@ struct SettingsView: View {
     @Environment(AppState.self) private var state
     @Environment(\.dismiss) private var dismiss
     @State private var tab = 0
+    @State private var kernelVersion = ""
 
     var body: some View {
         @Bindable var state = state
@@ -103,8 +104,32 @@ struct SettingsView: View {
                 Permissions.openFullDiskAccessSettings()
             }
             .buttonStyle(SoftButtonStyle())
+
+            Divider().overlay(Theme.line)
+
+            Text("About")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(Theme.muted)
+            Text(versionAboutLine)
+                .foregroundColor(Theme.muted)
+                .font(.system(size: 12))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .task {
+            kernelVersion = await CLIExecutor.shared.kernelVersion() ?? "—"
+        }
+    }
+
+    private var appBundleVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "—"
+    }
+
+    private var versionAboutLine: String {
+        let engine = kernelVersion.isEmpty ? "…" : kernelVersion
+        if appBundleVersion == engine {
+            return "CleanMac \(appBundleVersion)"
+        }
+        return "CleanMac \(appBundleVersion) (app bundle) · engine \(engine) — run make app to sync"
     }
 
     private var whitelistPane: some View {

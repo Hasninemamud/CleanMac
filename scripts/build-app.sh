@@ -6,7 +6,7 @@ export PATH="/opt/homebrew/bin:/usr/bin:/bin:$PATH"
 APP="$ROOT/macos/CleanMac.app"
 SRC="$ROOT/macos/CleanMac"
 BIN="$ROOT/bin/cleanmac"
-VERSION="${CLEANMAC_VERSION:-2.2.16}"
+VERSION="${CLEANMAC_VERSION:-$("$ROOT/scripts/version.sh")}"
 
 [[ -x "$BIN" ]] || make -C "$ROOT" build
 
@@ -73,3 +73,12 @@ xattr -cr "$APP" 2>/dev/null || true
 codesign --verify --verbose=2 "$APP" 2>&1 | head -5 || true
 
 echo "Built $APP (v${VERSION})"
+
+# Dock / Spotlight usually launch /Applications — keep it in sync with each `make app`.
+if [[ "${CLEANMAC_SKIP_APPS_INSTALL:-}" != "1" ]]; then
+  APPS_DEST="/Applications/CleanMac.app"
+  ditto "$APP" "$APPS_DEST"
+  xattr -cr "$APPS_DEST" 2>/dev/null || true
+  codesign --force --deep --sign - "$APPS_DEST" 2>/dev/null || codesign --force --sign - "$APPS_DEST"
+  echo "Installed $APPS_DEST (v${VERSION})"
+fi
