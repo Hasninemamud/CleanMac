@@ -6,6 +6,7 @@
 - SwiftUI app: Clean (+ Moon AI Cleanup) · Software · Analyze · Optimize (results sheet) · Status (pin/sort/force-quit/copy); Settings (showAICleanup); Menu Bar HUD
 - Junk/cache Clean deletes permanently (not Trash); Uninstall/Analyze keep Trash; `Safety.usesPermanentDelete` / Go `safety.PermanentDelete`
 - Shell: install / launch / build-app / package / selfcheck / test-website
+- Release **2.2.16** — Bounded junk scan walks; Clean Back to scan hero; FDA reminder + Settings status; globe click-through for Scan Mac
 - Release **2.2.15** — Faster Clean scans (batched du); cream/chocolate themes; AM-aligned metrics; permanent junk delete; smoother menu bar HUD
 - Release **2.2.12** — Fix Analyze/Optimize endless Scanning (timed sizing, segment-only loads)
 - Release **2.2.11** — Mole feature parity (AI Cleanup, Clean categories, Optimize/Status, Analyze/Apps segments)

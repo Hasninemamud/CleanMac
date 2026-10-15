@@ -1,6 +1,7 @@
-# CleanMac 2.2.15 — manual parity checklist
+# CleanMac 2.2.16 — manual parity checklist
 
-- [ ] Clean → Junk / Installers / Purge scan + Select safe + Trash
+- [ ] Clean → hero Scan Mac; review **Back** to hero; Junk scan + Select safe + permanent delete
+- [ ] Clean → Full Disk Access guide (Settings + one-time alert); fewer folder prompts after FDA
 - [ ] Software → Caches / Leftovers / Orphans / Uninstall
 - [ ] Software → Updates (Homebrew outdated + MAS link)
 - [ ] Software → Startup toggles (user LaunchAgents)
