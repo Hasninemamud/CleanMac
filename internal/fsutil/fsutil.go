@@ -144,6 +144,14 @@ func DuChildren(dir string, timeout time.Duration) map[string]int64 {
 	return out
 }
 
+// JunkDirSize sizes one cache folder for Clean — short du only, no deep walk.
+func JunkDirSize(path string) int64 {
+	if n, ok := DuBytesTimeout(path, 1500*time.Millisecond); ok {
+		return n
+	}
+	return 0
+}
+
 // PathSizeQuick sizes dirs for Analyze UI: du with a short timeout, then capped walk.
 // Keeps Map/Overview responsive on huge Library trees.
 func PathSizeQuick(path string) int64 {

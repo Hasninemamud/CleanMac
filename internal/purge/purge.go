@@ -55,7 +55,7 @@ func walkForArtifacts(root string, out *[]jsonout.Item, maxDepth, max, depth int
 		if artifactNames[ent.Name()] {
 			mtime := info.ModTime()
 			ageDays := time.Since(mtime).Hours() / 24
-			byteSize := fsutil.PathSizeQuick(full)
+			byteSize := fsutil.JunkDirSize(full)
 			if byteSize > 0 {
 				intended := "safe"
 				if ageDays < 7 {
@@ -92,7 +92,7 @@ func Scan(onProgress func(int, string)) []jsonout.Item {
 			}
 			var local []jsonout.Item
 			// ponytail: shallow project walk (depth 2, 80 hits) — raise if purge misses deep monorepos.
-			walkForArtifacts(root, &local, 2, 80, 0)
+			walkForArtifacts(root, &local, 2, 40, 0)
 			buckets[i].items = local
 		}(i, root)
 	}

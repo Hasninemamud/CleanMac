@@ -83,6 +83,26 @@ struct SettingsView: View {
             Text("Menu bar HUD shows health and top processes while the app runs.")
                 .foregroundColor(Theme.muted)
                 .font(.system(size: 12))
+
+            Divider().overlay(Theme.line)
+
+            Text("Privacy")
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(Theme.muted)
+            HStack(spacing: 8) {
+                Circle()
+                    .fill(Permissions.hasFullDiskAccess() ? Theme.ok : Theme.warn)
+                    .frame(width: 8, height: 8)
+                Text(Permissions.hasFullDiskAccess()
+                    ? "Full Disk Access is on — scans won't keep asking to allow folders."
+                    : "Full Disk Access is off — macOS may prompt on every scan.")
+                    .foregroundColor(Theme.muted)
+                    .font(.system(size: 12))
+            }
+            Button("Open Full Disk Access settings…") {
+                Permissions.openFullDiskAccessSettings()
+            }
+            .buttonStyle(SoftButtonStyle())
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

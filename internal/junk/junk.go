@@ -69,6 +69,7 @@ var CategoryLabels = map[string]string{
 	"communication": "Communication",
 	"cloud":         "Cloud storage",
 	"design":        "Design tools",
+	"systemData":    "System Data",
 	"temp":          "Temporary",
 	"trash":         "Trash",
 	// legacy keys from older scans
@@ -239,7 +240,7 @@ func cacheHolderRunning(cacheName string, running map[string]bool) bool {
 func enumerateTopLevel(target string, rule Rule, running map[string]bool) []jsonout.Item {
 	entries, err := os.ReadDir(target)
 	if err != nil {
-		size := fsutil.PathSizeQuick(target)
+		size := fsutil.JunkDirSize(target)
 		if size <= 0 {
 			return nil
 		}
@@ -302,9 +303,26 @@ func enumerateTopLevel(target string, rule Rule, running map[string]bool) []json
 		cands = append(cands, c)
 	}
 
-	// One du -d 1 of the parent instead of N unbounded du of each cache folder.
-	children := fsutil.DuChildren(target, 15*time.Second)
-	sem := make(chan struct{}, 8)
+	// ponytail: temp/logs can have thousands of top-level entries — cap before sizing.
+	const maxTopDirs = 80
+	if rule.Category == "temp" || rule.Category == "logs" {
+		if len(cands) > maxTopDirs {
+			cands = cands[:maxTopDirs]
+		}
+	}
+
+	// One du -d 1 of the parent instead of N parallel du of each child.
+	// Never bulk-du the whole temp root (can run 10+ minutes).
+	var children map[string]int64
+	maxFallback := 16
+	if rule.Category == "temp" {
+		children = map[string]int64{}
+		maxFallback = 32
+	} else {
+		children = fsutil.DuChildren(target, 5*time.Second)
+	}
+	var fallbacks int
+	sem := make(chan struct{}, 4)
 	var wg sync.WaitGroup
 	for i := range cands {
 		if !cands[i].isDir {
@@ -314,12 +332,16 @@ func enumerateTopLevel(target string, rule Rule, running map[string]bool) []json
 			cands[i].size = n
 			continue
 		}
+		if fallbacks >= maxFallback {
+			continue
+		}
+		fallbacks++
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
 			sem <- struct{}{}
-			cands[i].size = fsutil.PathSizeQuick(cands[i].full)
-			<-sem
+			defer func() { <-sem }()
+			cands[i].size = fsutil.JunkDirSize(cands[i].full)
 		}(i)
 	}
 	wg.Wait()
@@ -342,6 +364,34 @@ func enumerateTopLevel(target string, rule Rule, running map[string]bool) []json
 	return results
 }
 
+func localTimeMachineSnapshots() []jsonout.Item {
+	out, err := exec.Command("tmutil", "listlocalsnapshots", "/").Output()
+	if err != nil || len(out) == 0 {
+		return nil
+	}
+	var items []jsonout.Item
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "Snapshots for") {
+			continue
+		}
+		name := strings.TrimPrefix(line, "com.apple.TimeMachine.")
+		if name == line {
+			name = filepath.Base(line)
+		}
+		items = append(items, jsonout.Item{
+			Path:        line,
+			Name:        name,
+			ByteSize:    0,
+			Safety:      "review",
+			Category:    Label("systemData"),
+			Explanation: "Local Time Machine snapshot — removing frees APFS space when backups allow.",
+			IsDirectory: true,
+		})
+	}
+	return items
+}
+
 func Scan(onProgress func(int, string)) []jsonout.Item {
 	home := fsutil.HomeDir()
 	rules := Rules()
@@ -350,12 +400,16 @@ func Scan(onProgress func(int, string)) []jsonout.Item {
 	var wg sync.WaitGroup
 	var progMu sync.Mutex
 	visited := 0
-	sem := make(chan struct{}, 6)
+	sem := make(chan struct{}, 4)
+	deadline := time.Now().Add(90 * time.Second)
 
 	for i, rule := range rules {
 		wg.Add(1)
 		go func(i int, rule Rule) {
 			defer wg.Done()
+			if time.Now().After(deadline) {
+				return
+			}
 			target := rule.RelativePath
 			if !filepath.IsAbs(target) {
 				target = filepath.Join(home, rule.RelativePath)
@@ -385,6 +439,7 @@ func Scan(onProgress func(int, string)) []jsonout.Item {
 	for _, b := range buckets {
 		items = append(items, b...)
 	}
+	items = append(items, localTimeMachineSnapshots()...)
 	sort.Slice(items, func(i, j int) bool {
 		ti, tj := items[i].Category == Label("trash"), items[j].Category == Label("trash")
 		if ti != tj {

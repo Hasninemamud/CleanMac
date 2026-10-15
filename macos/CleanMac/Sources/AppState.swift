@@ -11,7 +11,7 @@ final class AppState {
     var cleanPhase: CleanPhase = .hero
     var analyzeSegment: AnalyzeSegment = .map
     var analyzeSelectedPath: String?
-    var softwareSegment: SoftwareSegment = .uninstall
+    var softwareSegment: SoftwareSegment = .updates
     var appsSort: AppsSort = .lastUsed
     var appsQuery = ""
     var alsoRemoveData = true
@@ -41,6 +41,7 @@ final class AppState {
     var showSettings = false
     var keepAwake = false
     var showCleanScreen = false
+    var showFullDiskAccessGuide = false
     private var assertID: IOPMAssertionID = 0
 
     var junk: [ScanItem] = []
@@ -61,13 +62,21 @@ final class AppState {
     var doctorChecks: [DoctorCheck] = []
     var history: [HistoryEntry] = []
 
+    /// Tab order matches mole.fit (Clean → Apps → Optimize → Analyze → Status).
     enum NavSection: String, CaseIterable, Identifiable {
         case clean = "Clean"
-        case software = "Apps"
-        case analyze = "Analyze"
+        case software = "Software"
         case optimize = "Optimize"
+        case analyze = "Analyze"
         case status = "Status"
         var id: String { rawValue }
+
+        var navLabel: String {
+            switch self {
+            case .software: return "Apps"
+            default: return rawValue
+            }
+        }
     }
 
     enum CleanPhase: String {
@@ -138,9 +147,9 @@ final class AppState {
         var id: String { rawValue }
     }
 
-    /// Primary Apps tabs — Mole Uninstall/Updates/Startup plus leftover hygiene.
+    /// Primary Software tabs — Mole order: Updates, Startup, Uninstall, then hygiene.
     static let appsPrimarySegments: [SoftwareSegment] = [
-        .uninstall, .updates, .startup, .caches, .leftovers, .orphans,
+        .updates, .startup, .uninstall, .caches, .leftovers, .orphans,
     ]
 
     enum AppsSort: String, CaseIterable, Identifiable {
@@ -229,14 +238,37 @@ final class AppState {
     /// Prevents stacking scans; bumped on cancel so stale work cannot clear a newer scan's busy flag.
     private var scanning = false
     private var scanToken = 0
+    private var lastCleanScanAt: Date?
+    private let cleanScanCacheTTL: TimeInterval = 90
+
+    /// Clean hero — Scan Mac / Review results.
+    func runCleanScanFromHero() async {
+        section = .clean
+        cleanPhase = .hero
+        if Permissions.shouldRemindForFullDiskAccess {
+            showFullDiskAccessGuide = true
+        }
+        do {
+            _ = try CLIExecutor.shared.ensureBinary()
+        } catch {
+            errorMessage = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+            statusLine = "Error"
+            return
+        }
+        await scan(force: true)
+    }
+
+    func backToCleanHero() {
+        cleanPhase = .hero
+    }
 
     func scan(quiet: Bool = false, force: Bool = false) async {
         if scanning {
-            // Cancel the in-flight scan so Analyze cannot block Optimize forever.
             CLIExecutor.shared.cancel()
-            // Brief yield so the cancelled process can exit and clear `scanning`.
-            try? await Task.sleep(nanoseconds: 80_000_000)
-            if scanning { return }
+            scanToken &+= 1
+            try? await Task.sleep(nanoseconds: 120_000_000)
+            scanning = false
+            if !quiet { busy = false }
         }
         scanToken &+= 1
         let token = scanToken
@@ -255,19 +287,21 @@ final class AppState {
         do {
             switch section {
             case .clean:
-                // One parallel Clean scan fills all buckets (junk + installers + purge).
+                if !force,
+                   let at = lastCleanScanAt,
+                   Date().timeIntervalSince(at) < cleanScanCacheTTL,
+                   !cleanItems.isEmpty {
+                    if !quiet { statusLine = "Ready" }
+                    break
+                }
+                if !quiet { statusLine = "Scanning…" }
                 let r = try await CLIExecutor.shared.run(["clean", "--json"], as: CleanScanResponse.self)
                 guard token == scanToken else { return }
                 junk = r.junk
                 installers = r.installers
                 purgeItems = r.purge
-                if showAICleanup {
-                    let det = try? await CLIExecutor.shared.run(["ai", "detect", "--json"], as: AIDetectResponse.self)
-                    guard token == scanToken else { return }
-                    aiHasData = det?.hasData ?? false
-                } else {
-                    aiHasData = false
-                }
+                lastCleanScanAt = Date()
+                refreshAICleanupHint(token: token)
             case .software:
                 switch softwareSegment {
                 case .caches, .leftovers, .orphans, .uninstall:
@@ -428,10 +462,24 @@ final class AppState {
         statusLine = "\(verb) \(ok)" + (fail > 0 ? ", \(fail) failed" : "")
         confirmTrash = false
         appendOpLog(action: permanent ? "delete" : "trash", paths: collapsed, bytes: bytes)
+        lastCleanScanAt = nil
         if showAIReview {
             await scanAI()
         } else {
-            await scan()
+            await scan(force: true)
+        }
+    }
+
+    /// AI moon hint — off the critical path so Clean scan feels instant.
+    private func refreshAICleanupHint(token: Int) {
+        guard showAICleanup else {
+            aiHasData = false
+            return
+        }
+        Task { @MainActor in
+            let det = try? await CLIExecutor.shared.runBackground(["ai", "detect", "--json"], as: AIDetectResponse.self)
+            guard token == scanToken else { return }
+            aiHasData = det?.hasData ?? false
         }
     }
 

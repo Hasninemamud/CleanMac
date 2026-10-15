@@ -17,6 +17,7 @@ var installerExt = map[string]bool{
 }
 
 var zipInstaller = regexp.MustCompile(`(?i)(setup|installer|install)`)
+var installerDirHint = regexp.MustCompile(`(?i)download|mail|telegram|desktop|icloud`)
 
 func isInstallerName(name string) bool {
 	lower := strings.ToLower(name)
@@ -53,7 +54,7 @@ func scanDir(dir, source string, out *[]jsonout.Item, max, depth, maxDepth int) 
 		if ent.IsDir() {
 			if depth < maxDepth {
 				combined := ent.Name() + source
-				if regexp.MustCompile(`(?i)download|mail|telegram|desktop|icloud`).MatchString(combined) {
+				if installerDirHint.MatchString(combined) {
 					scanDir(full, source, out, max, depth+1, maxDepth)
 				}
 			}

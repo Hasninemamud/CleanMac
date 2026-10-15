@@ -56,6 +56,9 @@ type Snapshot struct {
 	GPUPercent    float64      `json:"gpuPercent"`
 	GPUCores      int          `json:"gpuCores,omitempty"`
 	Thermal       string       `json:"thermal,omitempty"`
+	DiskReadKBs   float64      `json:"diskReadKBs,omitempty"`
+	DiskWriteKBs  float64      `json:"diskWriteKBs,omitempty"`
+	FanRPM        int          `json:"fanRpm,omitempty"`
 	HealthScore   int          `json:"healthScore"`
 	HealthLabel   string       `json:"healthLabel"`
 	Processes     []ProcessRow `json:"processes,omitempty"`
@@ -66,6 +69,7 @@ var (
 	lastNetIn  uint64
 	lastNetOut uint64
 	lastNetAt  time.Time
+
 )
 
 func Collect() Snapshot {
@@ -81,6 +85,8 @@ func Collect() Snapshot {
 	_, _ = networkKBs()
 	time.Sleep(220 * time.Millisecond)
 	down, up := networkKBs()
+	diskR, diskW := diskIOKBs()
+	fan := fanRPM()
 	procs := topProcesses(12)
 	gpu, gpuCores := gpuUtilization()
 	if gpu < 0 {
@@ -124,6 +130,9 @@ func Collect() Snapshot {
 		GPUPercent:    gpu,
 		GPUCores:      gpuCores,
 		Thermal:       thermalLabel(cpuPct, pressure),
+		DiskReadKBs:   diskR,
+		DiskWriteKBs:  diskW,
+		FanRPM:        fan,
 		HealthScore:   score,
 		HealthLabel:   label,
 		Processes:     procs,
@@ -730,6 +739,64 @@ func gpuEstimate(procs []ProcessRow) float64 {
 		sum = 100
 	}
 	return sum
+}
+
+// diskIOKBs returns summed read/write KB/s from iostat (per-disk MB/s columns).
+func diskIOKBs() (read, write float64) {
+	out, err := exec.Command("iostat", "-Id").Output()
+	if err != nil {
+		return 0, 0
+	}
+	var readMB, writeMB float64
+	for _, line := range strings.Split(string(out), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 3 {
+			continue
+		}
+		if mb, err := strconv.ParseFloat(fields[2], 64); err == nil && mb >= 0 {
+			readMB += mb
+		}
+		if len(fields) >= 6 {
+			if mb, err := strconv.ParseFloat(fields[5], 64); err == nil && mb >= 0 {
+				writeMB += mb
+			}
+		}
+	}
+	return readMB * 1024, writeMB * 1024
+}
+
+// ponytail: best-effort fan RPM from IOHWSensor; 0 when absent (Apple Silicon often hides fans).
+func fanRPM() int {
+	out, err := exec.Command("ioreg", "-r", "-c", "IOHWSensor").Output()
+	if err != nil {
+		return 0
+	}
+	best := 0
+	for _, line := range strings.Split(string(out), "\n") {
+		low := strings.ToLower(line)
+		if !strings.Contains(low, "fan") {
+			continue
+		}
+		if idx := strings.Index(line, "current-value"); idx >= 0 {
+			rest := line[idx:]
+			start := strings.Index(rest, "=")
+			if start < 0 {
+				continue
+			}
+			rest = strings.TrimSpace(rest[start+1:])
+			end := 0
+			for end < len(rest) && rest[end] >= '0' && rest[end] <= '9' {
+				end++
+			}
+			if end == 0 {
+				continue
+			}
+			if v, e := strconv.Atoi(rest[:end]); e == nil && v > best && v < 20000 {
+				best = v
+			}
+		}
+	}
+	return best
 }
 
 func thermalLabel(cpuPct, pressure float64) string {

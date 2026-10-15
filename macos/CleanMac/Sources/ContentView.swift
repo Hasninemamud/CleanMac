@@ -21,6 +21,7 @@ struct ContentView: View {
         .frame(minWidth: 920, idealWidth: 1020, maxWidth: 1280,
                minHeight: 600, idealHeight: 680, maxHeight: 900)
         .background(PlanetCanvas(section: state.section))
+        .overlay(alignment: .topTrailing) { windowChrome }
         .preferredColorScheme(state.appearanceDark ? .dark : .light)
         .id(state.appearanceTick)
         .animation(Theme.Motion.section, value: state.section)
@@ -59,6 +60,16 @@ struct ContentView: View {
             CleanScreenView { state.showCleanScreen = false }
                 .frame(minWidth: 800, minHeight: 600)
         }
+        .alert("Allow access once", isPresented: $state.showFullDiskAccessGuide) {
+            Button("Open System Settings") {
+                Permissions.openFullDiskAccessSettings()
+            }
+            Button("Don't ask again", role: .cancel) {
+                Permissions.suppressFullDiskAccessReminder()
+            }
+        } message: {
+            Text("To scan all caches without macOS asking every time, add CleanMac in System Settings → Privacy & Security → Full Disk Access, then turn it on. You only need to do this once.")
+        }
         .onAppear {
             Theme.useDark = state.appearanceDark
             NSApp.appearance = NSAppearance(named: state.appearanceDark ? .darkAqua : .aqua)
@@ -66,81 +77,95 @@ struct ContentView: View {
     }
 
     private var topBar: some View {
-        let accent = Theme.Feature.accent(for: state.section)
-        return ZStack {
+        ZStack {
             Theme.rail
                 .animation(.easeInOut(duration: 0.3), value: state.section)
-            HStack(spacing: 10) {
-                Spacer(minLength: 8)
-                if state.busy {
-                    ProgressView().controlSize(.mini).tint(accent)
+            HStack(spacing: 0) {
+                Spacer(minLength: 0)
+                HStack(spacing: 10) {
+                    BrandLogo(size: 24)
+                    HStack(spacing: 2) {
+                        ForEach(AppState.NavSection.allCases) { s in
+                            SegmentPill(
+                                title: s.navLabel,
+                                selected: state.section == s,
+                                accent: Theme.Feature.accent(for: s),
+                                namespace: navNS,
+                                matchID: "mainNav",
+                                moleNav: true
+                            ) {
+                                if state.section != s {
+                                    state.stop()
+                                }
+                                withAnimation(Theme.Motion.snappy) {
+                                    state.section = s
+                                    state.selected.removeAll()
+                                }
+                            }
+                        }
+                    }
                 }
+                .padding(.leading, 10)
+                .padding(.trailing, 6)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule()
+                        .fill(Theme.navTrack)
+                        .overlay(Capsule().stroke(Theme.line, lineWidth: 1))
+                )
+                .animation(Theme.Motion.snappy, value: state.section)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 10)
+        }
+        .frame(height: 58)
+    }
+
+    /// Settings + theme toggle (mole.fit: moon top-right).
+    private var windowChrome: some View {
+        HStack(spacing: 10) {
+            if state.busy, !hideStatusOnHero, state.section != .clean {
+                ProgressView().controlSize(.mini).tint(Theme.Feature.accent(for: state.section))
+            }
+            if !hideStatusOnHero, state.section != .clean {
                 Text(state.statusLine)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundColor(state.busy ? accent : Theme.muted)
+                    .foregroundColor(Theme.muted)
                     .lineLimit(1)
-                    .frame(maxWidth: 120, alignment: .trailing)
-                Button {
-                    state.showSettings = true
-                    Task { await state.loadSettingsData() }
-                } label: {
-                    Image(systemName: "gearshape")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(Theme.muted)
-                }
-                .buttonStyle(.plain)
-                .help("Settings")
-                Button {
-                    withAnimation(.easeInOut(duration: 0.28)) {
-                        state.appearanceDark.toggle()
-                    }
-                } label: {
-                    Image(systemName: state.appearanceDark ? "sun.max.fill" : "moon.fill")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(Theme.muted)
-                        .symbolEffect(.bounce, value: state.appearanceTick)
-                }
-                .buttonStyle(.plain)
-                .help(state.appearanceDark ? "Light theme" : "Dark theme")
+                    .frame(maxWidth: 100, alignment: .trailing)
             }
-            .padding(.trailing, 16)
-            .animation(.easeOut(duration: 0.2), value: state.busy)
+            Button {
+                state.showSettings = true
+                Task { await state.loadSettingsData() }
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Theme.muted.opacity(0.85))
+            }
+            .buttonStyle(.plain)
+            .help("Settings")
+            Button {
+                withAnimation(.easeInOut(duration: 0.28)) {
+                    state.appearanceDark.toggle()
+                }
+            } label: {
+                MoonGlobeView(diameter: 26)
+                    .opacity(state.appearanceDark ? 1 : 0.55)
+            }
+            .buttonStyle(.plain)
+            .help(state.appearanceDark ? "Light theme" : "Dark theme")
+        }
+        .padding(.trailing, 18)
+        .padding(.top, 14)
+    }
 
-            // Centered planet nav (mock: icon + label pills)
-            HStack(spacing: 2) {
-                ForEach(AppState.NavSection.allCases) { s in
-                    SegmentPill(
-                        title: s.rawValue,
-                        selected: state.section == s,
-                        accent: Theme.Feature.accent(for: s),
-                        namespace: navNS,
-                        matchID: "mainNav"
-                    ) {
-                        if state.section != s {
-                            state.stop()
-                        }
-                        withAnimation(Theme.Motion.snappy) {
-                            state.section = s
-                            state.selected.removeAll()
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, 4)
-            .padding(.vertical, 3)
-            .background(
-                Capsule()
-                    .fill(Theme.useDark ? Color.white.opacity(0.06) : Color.white.opacity(0.55))
-                    .overlay(Capsule().stroke(Theme.line, lineWidth: 1))
-            )
-            .animation(Theme.Motion.snappy, value: state.section)
-        }
-        .frame(height: 52)
-        .overlay(alignment: .bottom) {
-            Rectangle()
-                .fill(Theme.line)
-                .frame(height: 1)
-        }
+    private var hideStatusOnHero: Bool {
+        state.section == .clean && state.cleanPhase == .hero && !state.busy
+    }
+
+    private var cleanHeroLayout: Bool {
+        state.section == .clean && state.cleanPhase == .hero
     }
 
     private var pageHead: some View {
@@ -194,10 +219,10 @@ struct ContentView: View {
             insertion: .opacity.combined(with: .move(edge: .trailing)).combined(with: .scale(scale: 0.985)),
             removal: .opacity.combined(with: .move(edge: .leading)).combined(with: .scale(scale: 0.99))
         ))
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.horizontal, selfContainedSection ? 28 : 22)
-        .padding(.top, selfContainedSection ? 18 : 0)
-        .padding(.bottom, selfContainedSection ? 18 : 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: cleanHeroLayout ? .center : .topLeading)
+        .padding(.horizontal, cleanHeroLayout ? 0 : (selfContainedSection ? 28 : 22))
+        .padding(.top, cleanHeroLayout ? 0 : (selfContainedSection ? 18 : 0))
+        .padding(.bottom, cleanHeroLayout ? 0 : (selfContainedSection ? 18 : 14))
         .animation(Theme.Motion.section, value: state.section)
     }
 
@@ -241,7 +266,7 @@ struct ContentView: View {
     private var pageSubtitle: String {
         switch state.section {
         case .clean: return "Caches, logs, installers, artifacts — review before permanent delete"
-        case .software: return "Caches, leftovers, uninstall, updates, startup"
+        case .software: return "Updates, startup, uninstall, caches and leftovers"
         case .analyze: return "Disk map, treemap drill-down, large files, duplicates"
         case .optimize: return "Maintenance catalog — preview, then confirm"
         case .status: return "Live meters · menu bar HUD · utilities"

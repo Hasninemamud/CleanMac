@@ -1,12 +1,17 @@
 import SwiftUI
 import SceneKit
 
+/// SCNView must not steal clicks from SwiftUI buttons below/around the globe.
+private final class HitPassthroughSCNView: SCNView {
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+}
+
 /// Rotating Mole-style globe for the Clean hero.
 struct EarthGlobeView: NSViewRepresentable {
     var spinningFast: Bool = false
 
     func makeNSView(context: Context) -> SCNView {
-        let view = SCNView()
+        let view = HitPassthroughSCNView()
         view.scene = Self.makeScene()
         view.backgroundColor = .clear
         view.allowsCameraControl = false
@@ -118,6 +123,69 @@ struct EarthGlobeView: NSViewRepresentable {
         }
         img.unlockFocus()
         return img
+    }
+}
+
+/// Theme toggle moon (mole.fit top-right).
+struct MoonGlobeView: View {
+    var diameter: CGFloat = 28
+
+    var body: some View {
+        Circle()
+            .fill(
+                RadialGradient(
+                    colors: [
+                        Color(red: 0.92, green: 0.91, blue: 0.88),
+                        Color(red: 0.72, green: 0.70, blue: 0.66),
+                        Color(red: 0.45, green: 0.44, blue: 0.48),
+                    ],
+                    center: UnitPoint(x: 0.38, y: 0.35),
+                    startRadius: 1,
+                    endRadius: diameter * 0.55
+                )
+            )
+            .frame(width: diameter, height: diameter)
+            .overlay {
+                Circle()
+                    .fill(Color.black.opacity(0.12))
+                    .frame(width: diameter * 0.22, height: diameter * 0.18)
+                    .offset(x: -diameter * 0.12, y: diameter * 0.05)
+                Circle()
+                    .fill(Color.black.opacity(0.08))
+                    .frame(width: diameter * 0.14, height: diameter * 0.12)
+                    .offset(x: diameter * 0.18, y: -diameter * 0.08)
+            }
+            .shadow(color: Color.white.opacity(0.15), radius: 4, y: 1)
+    }
+}
+
+/// Small Mars accent for Software (Mole Mars tab).
+struct MarsGlobeView: View {
+    var body: some View {
+        Circle()
+            .fill(
+                RadialGradient(
+                    colors: [
+                        Color(red: 0.92, green: 0.42, blue: 0.32),
+                        Color(red: 0.62, green: 0.22, blue: 0.18),
+                        Color(red: 0.38, green: 0.14, blue: 0.12),
+                    ],
+                    center: UnitPoint(x: 0.38, y: 0.34),
+                    startRadius: 2,
+                    endRadius: 22
+                )
+            )
+            .overlay {
+                Circle()
+                    .fill(Color.black.opacity(0.12))
+                    .frame(width: 6, height: 5)
+                    .offset(x: -6, y: 4)
+                Circle()
+                    .fill(Color.black.opacity(0.10))
+                    .frame(width: 4, height: 3)
+                    .offset(x: 8, y: -5)
+            }
+            .shadow(color: Color.black.opacity(0.2), radius: 4, y: 2)
     }
 }
 

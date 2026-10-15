@@ -5,27 +5,27 @@ enum Theme {
     /// Cream (light) / chocolate (dark) — flipped by the sun toggle.
     static var useDark: Bool = UserDefaults.standard.object(forKey: "appearanceDark") as? Bool ?? true
 
-    // Shared chrome (mock: unified cream/chocolate, planet accents on icons only).
+    // Dark: mole.fit navy charcoal. Light: warm cream (optional toggle).
     static var bg: Color {
-        useDark ? Color(red: 0.102, green: 0.071, blue: 0.051) : Color(red: 0.992, green: 0.973, blue: 0.890)
+        useDark ? Color(red: 0.102, green: 0.110, blue: 0.133) : Color(red: 0.992, green: 0.973, blue: 0.890)
     }
     static var rail: Color {
-        useDark ? Color(red: 0.086, green: 0.059, blue: 0.043) : Color(red: 0.980, green: 0.953, blue: 0.855)
+        useDark ? Color(red: 0.090, green: 0.096, blue: 0.114) : Color(red: 0.980, green: 0.953, blue: 0.855)
     }
     static var surface: Color {
-        useDark ? Color(red: 0.145, green: 0.110, blue: 0.086) : Color(red: 1.0, green: 0.995, blue: 0.975)
+        useDark ? Color(red: 0.133, green: 0.141, blue: 0.165) : Color(red: 1.0, green: 0.995, blue: 0.975)
     }
     static var surface2: Color {
-        useDark ? Color(red: 0.185, green: 0.145, blue: 0.115) : Color(red: 0.965, green: 0.930, blue: 0.820)
+        useDark ? Color(red: 0.157, green: 0.165, blue: 0.192) : Color(red: 0.965, green: 0.930, blue: 0.820)
     }
     static var ink: Color {
-        useDark ? Color(red: 0.992, green: 0.961, blue: 0.902) : Color(red: 0.220, green: 0.145, blue: 0.100)
+        useDark ? Color(red: 0.96, green: 0.96, blue: 0.97) : Color(red: 0.220, green: 0.145, blue: 0.100)
     }
     static var muted: Color {
-        useDark ? Color(red: 0.992, green: 0.961, blue: 0.902).opacity(0.58) : Color(red: 0.420, green: 0.320, blue: 0.240)
+        useDark ? Color(red: 0.58, green: 0.60, blue: 0.66) : Color(red: 0.420, green: 0.320, blue: 0.240)
     }
     static var line: Color {
-        useDark ? Color.white.opacity(0.10) : Color(red: 0.220, green: 0.145, blue: 0.100).opacity(0.12)
+        useDark ? Color.white.opacity(0.08) : Color(red: 0.220, green: 0.145, blue: 0.100).opacity(0.12)
     }
     static var accent: Color { Color(red: 0.83, green: 0.36, blue: 0.28) } // terracotta
     static var accentSoft: Color { accent.opacity(0.18) }
@@ -34,13 +34,24 @@ enum Theme {
     static var danger: Color { Color(red: 0.83, green: 0.36, blue: 0.28) }
     /// Sandy primary CTA (dark Scan Mac) / terracotta fill when light.
     static var ctaFill: Color {
-        useDark ? Color(red: 0.851, green: 0.663, blue: 0.451) : Color(red: 0.83, green: 0.36, blue: 0.28)
+        useDark ? Color.white : Color(red: 0.83, green: 0.36, blue: 0.28)
     }
     static var ctaInk: Color {
-        useDark ? Color(red: 0.180, green: 0.110, blue: 0.070) : Color.white
+        useDark ? Color(red: 0.12, green: 0.13, blue: 0.16) : Color.white
     }
     static var footerBar: Color {
-        useDark ? Color(red: 0.160, green: 0.120, blue: 0.090) : Color(red: 0.925, green: 0.870, blue: 0.755)
+        useDark ? Color(red: 0.118, green: 0.125, blue: 0.150) : Color(red: 0.925, green: 0.870, blue: 0.755)
+    }
+
+    /// Inverted nav pill (mole.fit): white selected tab on dark track.
+    static var navTrack: Color {
+        useDark ? Color.white.opacity(0.07) : Color.white.opacity(0.55)
+    }
+    static var navSelectedFill: Color {
+        useDark ? Color.white : Color.white
+    }
+    static var navSelectedInk: Color {
+        useDark ? Color(red: 0.12, green: 0.13, blue: 0.16) : Color(red: 0.22, green: 0.15, blue: 0.10)
     }
 
     enum Radius {
@@ -134,14 +145,14 @@ struct PlanetCanvas: View {
 
     var body: some View {
         let accent = Theme.Feature.accent(for: section)
-        let wash = Theme.useDark ? 0.10 : 0.06
+        let wash = Theme.useDark ? 0.05 : 0.06
         ZStack {
             Theme.bg
             RadialGradient(
-                colors: [accent.opacity(drift ? wash : wash * 0.45), .clear],
-                center: UnitPoint(x: drift ? 0.82 : 0.72, y: drift ? 0.18 : 0.28),
-                startRadius: 20,
-                endRadius: 380
+                colors: [accent.opacity(drift ? wash : wash * 0.4), .clear],
+                center: UnitPoint(x: drift ? 0.78 : 0.68, y: drift ? 0.22 : 0.32),
+                startRadius: 40,
+                endRadius: 420
             )
             LinearGradient(
                 colors: [
@@ -326,12 +337,14 @@ struct SegmentPill: View {
     var accent: Color? = nil
     var namespace: Namespace.ID? = nil
     var matchID: String = "segmentPill"
+    /// mole.fit main nav: white selected pill, muted labels, planet dot when idle.
+    var moleNav = false
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 6) {
-                if let accent {
+                if let accent, !selected || !moleNav {
                     Circle()
                         .fill(
                             RadialGradient(
@@ -341,15 +354,15 @@ struct SegmentPill: View {
                                 endRadius: 8
                             )
                         )
-                        .frame(width: 10, height: 10)
+                        .frame(width: moleNav ? 8 : 10, height: moleNav ? 8 : 10)
                         .overlay(Circle().stroke(Color.white.opacity(Theme.useDark ? 0.15 : 0.35), lineWidth: 0.5))
                 }
                 Text(title)
-                    .font(.system(size: 12, weight: selected ? .bold : .semibold))
-                    .foregroundColor(selected ? Theme.ink : Theme.muted)
+                    .font(.system(size: moleNav ? 13 : 12, weight: selected ? .semibold : .medium))
+                    .foregroundColor(labelColor)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 7)
+            .padding(.horizontal, moleNav ? 14 : 12)
+            .padding(.vertical, moleNav ? 8 : 7)
             .background {
                 if selected { pillFill }
             }
@@ -359,19 +372,62 @@ struct SegmentPill: View {
         .animation(Theme.Motion.snappy, value: selected)
     }
 
+    private var labelColor: Color {
+        if moleNav {
+            return selected ? Theme.navSelectedInk : Theme.muted
+        }
+        return selected ? Theme.ink : Theme.muted
+    }
+
     @ViewBuilder
     private var pillFill: some View {
-        let fill = Theme.useDark ? Color.white.opacity(0.10) : Color.white
+        let fill = moleNav ? Theme.navSelectedFill : (Theme.useDark ? Color.white.opacity(0.10) : Color.white)
         if let namespace {
             Capsule()
                 .fill(fill)
-                .shadow(color: Color.black.opacity(Theme.useDark ? 0.25 : 0.06), radius: 6, y: 1)
+                .shadow(color: Color.black.opacity(moleNav ? 0.12 : (Theme.useDark ? 0.25 : 0.06)), radius: moleNav ? 4 : 6, y: 1)
                 .matchedGeometryEffect(id: matchID, in: namespace)
         } else {
             Capsule()
                 .fill(fill)
-                .shadow(color: Color.black.opacity(Theme.useDark ? 0.25 : 0.06), radius: 6, y: 1)
+                .shadow(color: Color.black.opacity(moleNav ? 0.12 : (Theme.useDark ? 0.25 : 0.06)), radius: moleNav ? 4 : 6, y: 1)
         }
+    }
+}
+
+/// Idle Clean hero — gray pill (mole.fit pre-scan).
+struct MoleScanMacButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundColor(Color.white.opacity(configuration.isPressed ? 0.45 : 0.55))
+            .padding(.horizontal, 36)
+            .padding(.vertical, 14)
+            .background(Color.white.opacity(configuration.isPressed ? 0.14 : 0.18))
+            .clipShape(Capsule())
+            .contentShape(Capsule())
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(Theme.Motion.press, value: configuration.isPressed)
+    }
+}
+
+/// Large white CTA on Clean hero (mole.fit).
+struct MoleHeroButtonStyle: ButtonStyle {
+    var disabled = false
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundColor(disabled ? Theme.muted : Theme.ctaInk)
+            .padding(.horizontal, 42)
+            .padding(.vertical, 14)
+            .background(
+                Theme.ctaFill.opacity(disabled ? 0.35 : (configuration.isPressed ? 0.92 : 1))
+            )
+            .clipShape(Capsule())
+            .shadow(color: Color.black.opacity(disabled ? 0 : 0.18), radius: 16, y: 6)
+            .scaleEffect(configuration.isPressed ? 0.98 : 1)
+            .animation(Theme.Motion.press, value: configuration.isPressed)
     }
 }
 

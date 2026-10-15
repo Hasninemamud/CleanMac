@@ -29,175 +29,178 @@ struct CleanView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .animation(.spring(response: 0.45, dampingFraction: 0.86), value: state.cleanPhase)
-        .pageEnter()
-        .task {
-            withAnimation(.easeOut(duration: 0.55)) { heroReady = true }
-            if !state.busy && state.cleanItems.isEmpty {
-                await state.scan()
-            }
-        }
+        .onAppear { heroReady = true }
     }
 
-    // MARK: - Hero (scan summary)
+    // MARK: - Hero (mole.fit: globe, title, subtitle, Scan Mac)
 
     private var hero: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Spacer()
-                if state.showAICleanup && state.aiHasData {
-                    Button {
-                        state.showAIReview = true
-                        Task { await state.scanAI() }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "moon.fill")
-                                .font(.system(size: 12, weight: .semibold))
-                            Text("AI Cleanup")
-                                .font(.system(size: 12, weight: .semibold))
-                        }
-                        .foregroundColor(Theme.ink.opacity(0.85))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(Theme.surface.opacity(0.9))
-                        .clipShape(Capsule())
-                        .overlay(Capsule().stroke(Theme.line, lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-                    .help("AI Cleanup & Care")
-                    .padding(.trailing, 16)
-                    .padding(.top, 8)
-                }
-            }
-            Spacer(minLength: 8)
+        let hasResults = !state.cleanItems.isEmpty && !state.busy
+        return VStack(spacing: 0) {
+            Spacer(minLength: 24)
             ZStack {
                 Circle()
-                    .stroke(Theme.ink.opacity(Theme.useDark ? 0.18 : 0.22), lineWidth: 14)
-                    .frame(width: 196, height: 196)
-                Circle()
-                    .fill(
-                        RadialGradient(
-                            colors: [
-                                Theme.Feature.clean.opacity(state.busy ? 0.32 : 0.16),
-                                Theme.bg.opacity(0),
-                            ],
-                            center: .center,
-                            startRadius: 20,
-                            endRadius: 140
+                    .stroke(Color.white.opacity(Theme.useDark ? 0.22 : 0.18), lineWidth: 2)
+                    .frame(width: 210, height: 210)
+                if state.busy {
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [Theme.Feature.clean.opacity(0.2), Theme.bg.opacity(0)],
+                                center: .center,
+                                startRadius: 20,
+                                endRadius: 140
+                            )
                         )
-                    )
-                    .frame(width: 280, height: 280)
-                    .scaleEffect(state.busy ? 1.04 : 1)
-                    .animation(
-                        state.busy
-                            ? .easeInOut(duration: 1.1).repeatForever(autoreverses: true)
-                            : .spring(response: 0.4, dampingFraction: 0.85),
-                        value: state.busy
-                    )
+                        .frame(width: 280, height: 280)
+                }
                 EarthGlobeView(spinningFast: state.busy)
-                    .frame(width: 168, height: 168)
-                    .offset(y: heroReady ? 0 : 18)
+                    .frame(width: 180, height: 180)
+                    .offset(y: heroReady ? 0 : 14)
                     .opacity(heroReady ? 1 : 0)
             }
-            .padding(.bottom, 28)
+            .allowsHitTesting(false)
+            .padding(.bottom, 32)
 
             Group {
-                if state.cleanItems.isEmpty {
+                if hasResults {
+                    Text("\(ByteFormat.disk(state.cleanTotalBytes)) found")
+                        .font(.system(size: 32, weight: .bold))
+                        .foregroundColor(Theme.ink)
+                        .contentTransition(.numericText())
+                    Text("\(state.cleanItems.count) items in \(state.cleanCategories.count) categories · Scan again")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(Theme.muted)
+                        .padding(.top, 8)
+                        .onTapGesture { Task { await state.scan(force: true) } }
+                } else {
                     Text("Clean your Mac")
-                        .font(Theme.Typeface.hero(36))
+                        .font(.system(size: 34, weight: .bold))
                         .foregroundColor(Theme.ink)
                     Text("Finds caches, logs, installers and other junk you can safely remove.")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(Theme.muted)
                         .multilineTextAlignment(.center)
-                        .frame(maxWidth: 420)
-                        .padding(.top, 8)
-                } else {
-                    Text(ByteFormat.disk(state.cleanTotalBytes))
-                        .font(Theme.Typeface.hero(40))
-                        .foregroundColor(Theme.ink)
-                        .contentTransition(.numericText())
-                        .animation(Theme.Motion.meter, value: state.cleanTotalBytes)
-                    Text("Found \(ByteFormat.disk(state.cleanTotalBytes)) of junk")
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(Theme.ink)
-                        .padding(.top, 4)
-                    Text(state.busy ? "Scanning…" : "Review what was found, then delete.")
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(Theme.muted)
-                        .padding(.top, 6)
+                        .frame(maxWidth: 440)
+                        .padding(.top, 10)
                 }
             }
             .opacity(heroReady ? 1 : 0)
-            .offset(y: heroReady ? 0 : 10)
+            .offset(y: heroReady ? 0 : 8)
 
-            Spacer(minLength: 28)
+            Spacer(minLength: 32)
 
-            Button {
-                if state.cleanItems.isEmpty {
-                    Task { await state.scan() }
-                } else if state.busy {
-                    return
-                } else {
-                    if state.selected.isEmpty { state.selectRecommendedClean() }
-                    withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
-                        state.cleanPhase = .review
+            Group {
+                if hasResults {
+                    Button { heroPrimaryAction(hasResults: true) } label: {
+                        Text(heroButtonTitle(hasResults: true))
+                            .frame(minWidth: 280, minHeight: 20)
+                            .contentShape(Capsule())
                     }
+                    .buttonStyle(MoleHeroButtonStyle())
+                } else {
+                    Button { heroPrimaryAction(hasResults: false) } label: {
+                        Text(heroButtonTitle(hasResults: false))
+                            .frame(minWidth: 280, minHeight: 20)
+                            .contentShape(Capsule())
+                    }
+                    .buttonStyle(MoleScanMacButtonStyle())
                 }
-            } label: {
-                Text(state.cleanItems.isEmpty ? "Scan Mac" : (state.busy ? "Scanning…" : "Review results"))
-                    .font(.system(size: 15, weight: .bold))
-                    .foregroundColor(Theme.ctaInk)
-                    .padding(.horizontal, 40)
-                    .padding(.vertical, 14)
-                    .background(Theme.ctaFill)
-                    .clipShape(Capsule())
-                    .shadow(color: Theme.ctaFill.opacity(0.35), radius: 16, y: 6)
             }
-            .buttonStyle(PressableCapsuleStyle())
             .disabled(state.busy)
-            .opacity(heroReady ? 1 : 0)
-            .offset(y: heroReady ? 0 : 16)
+            .padding(.top, 4)
 
-            if !state.cleanItems.isEmpty {
-                Button("Scan again") { Task { await state.scan() } }
-                    .buttonStyle(SoftButtonStyle())
-                    .disabled(state.busy)
-                    .padding(.top, 12)
+            if state.busy {
+                HStack(spacing: 12) {
+                    ProgressView().controlSize(.small)
+                    Text(state.statusLine)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(Theme.muted)
+                    Button("Stop") { state.stop() }
+                        .font(.system(size: 12, weight: .semibold))
+                        .buttonStyle(.plain)
+                        .foregroundColor(Theme.ink.opacity(0.85))
+                }
+                .padding(.top, 12)
             }
 
-            Spacer().frame(height: 36)
+            if let err = state.errorMessage, !err.isEmpty {
+                Text(err)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(Theme.danger)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: 400)
+                    .padding(.top, 10)
+            }
+
+            Spacer(minLength: 48)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func heroButtonTitle(hasResults: Bool) -> String {
+        if state.busy { return "Scanning…" }
+        return hasResults ? "Review results" : "Scan Mac"
+    }
+
+    private func heroPrimaryAction(hasResults: Bool) {
+        if state.busy { return }
+        if !hasResults {
+            Task { @MainActor in await state.runCleanScanFromHero() }
+            return
+        }
+        if state.selected.isEmpty { state.selectRecommendedClean() }
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.86)) {
+            state.cleanPhase = .review
+        }
     }
 
     // MARK: - Review (category list)
 
     private func review(selected: Binding<Set<String>>) -> some View {
         VStack(spacing: 0) {
+            HStack {
+                Button {
+                    state.backToCleanHero()
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 12, weight: .bold))
+                        Text("Back")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .foregroundColor(Theme.ink.opacity(0.88))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Theme.navTrack)
+                    .clipShape(Capsule())
+                    .overlay(Capsule().stroke(Theme.line, lineWidth: 1))
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut(.cancelAction)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 4)
+            .padding(.bottom, 8)
+
             VStack(spacing: 8) {
                 ZStack {
                     Circle()
-                        .stroke(Theme.ink.opacity(0.18), lineWidth: 10)
-                        .frame(width: 88, height: 88)
+                        .stroke(Theme.muted.opacity(0.35), lineWidth: 2)
+                        .frame(width: 92, height: 92)
                     EarthGlobeView(spinningFast: false)
-                        .frame(width: 72, height: 72)
+                        .frame(width: 76, height: 76)
                 }
                 .padding(.top, 8)
 
-                Text(ByteFormat.disk(state.cleanTotalBytes))
-                    .font(Theme.Typeface.hero(36))
+                Text("\(ByteFormat.disk(state.cleanTotalBytes)) found")
+                    .font(.system(size: 28, weight: .bold))
                     .foregroundColor(Theme.ink)
                     .contentTransition(.numericText())
-                Text("Found \(ByteFormat.disk(state.cleanTotalBytes)) of junk")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(Theme.ink)
-                Text("Review what was found, then delete.")
+                Text("\(state.cleanItems.count) items in \(state.cleanCategories.count) categories")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(Theme.muted)
-
-                Button("Scan again") { Task { await state.scan() } }
-                    .buttonStyle(SoftButtonStyle())
-                    .disabled(state.busy)
                     .padding(.top, 4)
             }
             .frame(maxWidth: .infinity)
@@ -592,12 +595,17 @@ struct SoftwareView: View {
     private func appsChrome(selected: Binding<Set<String>>, query: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
+            HStack(spacing: 10) {
+                MarsGlobeView()
+                    .frame(width: 36, height: 36)
+                    .accessibilityHidden(true)
                 HStack(spacing: 2) {
-                    ForEach(AppState.appsPrimarySegments) { s in
-                        SegmentPill(
-                            title: s.rawValue,
-                            selected: state.softwareSegment == s
-                        ) {
+                ForEach(AppState.appsPrimarySegments) { s in
+                    SegmentPill(
+                        title: s.rawValue,
+                        selected: state.softwareSegment == s,
+                        accent: Theme.Feature.apps
+                    ) {
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) {
                                 state.softwareSegment = s
                                 state.selected.removeAll()
@@ -625,9 +633,11 @@ struct SoftwareView: View {
                     .help("Refresh")
                 }
                 .padding(3)
-                .background(Color.white.opacity(0.08))
+                .background(Theme.navTrack)
                 .clipShape(Capsule())
-                .shadow(color: Theme.Feature.apps.opacity(pulseAccent ? 0.16 : 0.04), radius: 10, y: 2)
+                .overlay(Capsule().stroke(Theme.line, lineWidth: 1))
+                .shadow(color: Theme.Feature.apps.opacity(pulseAccent ? 0.12 : 0.03), radius: 8, y: 2)
+                }
 
                 Spacer()
 
@@ -1135,7 +1145,11 @@ struct AnalyzeView: View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 2) {
                 ForEach(AppState.AnalyzeSegment.allCases) { s in
-                    SegmentPill(title: s.rawValue, selected: state.analyzeSegment == s) {
+                    SegmentPill(
+                        title: s.rawValue,
+                        selected: state.analyzeSegment == s,
+                        accent: Theme.Feature.analyze
+                    ) {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.88)) {
                             state.analyzeSegment = s
                             state.selected.removeAll()
@@ -1157,8 +1171,9 @@ struct AnalyzeView: View {
                 .help("Refresh")
             }
             .padding(3)
-            .background(Color.white.opacity(0.08))
+            .background(Theme.navTrack)
             .clipShape(Capsule())
+            .overlay(Capsule().stroke(Theme.line, lineWidth: 1))
 
             Group {
                 switch state.analyzeSegment {

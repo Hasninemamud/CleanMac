@@ -98,8 +98,8 @@ func TestScanCompletesQuickly(t *testing.T) {
 	start := time.Now()
 	items := Scan(nil)
 	elapsed := time.Since(start)
-	if elapsed > 20*time.Second {
-		t.Fatalf("Scan took %v (>20s), items=%d", elapsed, len(items))
+	if elapsed > 12*time.Second {
+		t.Fatalf("Scan took %v (>12s), items=%d", elapsed, len(items))
 	}
 	t.Logf("Scan %v items=%d", elapsed, len(items))
 	// Trash (if present) must sort last among equal handling.

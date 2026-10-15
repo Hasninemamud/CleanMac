@@ -329,7 +329,7 @@ struct StatusView: View {
                                 title: "DISK", tint: Dash.blue,
                                 badge: ByteFormat.disk(m.diskTotal),
                                 primary: ByteFormat.disk(m.diskFree),
-                                footer: "\(ByteFormat.disk(m.diskUsed)) used · \(Int((diskRatio(m) * 100).rounded()))%",
+                                footer: diskIOFooter(m),
                                 history: historyDisk, chart: .bar
                             )
                             statusMiniCard(
@@ -340,10 +340,10 @@ struct StatusView: View {
                             )
                             statusMiniCard(
                                 title: "THERMAL", tint: Dash.green,
-                                badge: m.thermal ?? "Normal",
+                                badge: thermalBadge(m),
                                 primary: "CPU \(estTemp(m.cpuPercent))",
                                 secondary: "GPU \(estTemp(m.gpuPercent))",
-                                footer: "\(shortChip(m)) · peak \(estTemp((m.cpuPercent ?? 0) * 1.4))",
+                                footer: thermalFooter(m),
                                 history: [min((m.cpuPercent ?? 0) / 100, 1)], chart: .bar
                             )
                         }
@@ -878,6 +878,28 @@ struct StatusView: View {
     private func diskRatio(_ m: StatusSnapshot) -> Double {
         guard m.diskTotal > 0 else { return 0 }
         return min(Double(m.diskUsed) / Double(m.diskTotal), 1)
+    }
+
+    private func diskIOFooter(_ m: StatusSnapshot) -> String {
+        let usedPct = Int((diskRatio(m) * 100).rounded())
+        let r = m.diskReadKBs ?? 0
+        let w = m.diskWriteKBs ?? 0
+        if r > 0 || w > 0 {
+            return "R \(rate(r)) · W \(rate(w)) · \(usedPct)% used"
+        }
+        return "\(ByteFormat.disk(m.diskUsed)) used · \(usedPct)%"
+    }
+
+    private func thermalBadge(_ m: StatusSnapshot) -> String {
+        if let rpm = m.fanRpm, rpm > 0 { return "\(rpm) RPM" }
+        return m.thermal ?? "Normal"
+    }
+
+    private func thermalFooter(_ m: StatusSnapshot) -> String {
+        if let rpm = m.fanRpm, rpm > 0 {
+            return "\(shortChip(m)) · \(m.thermal ?? "Normal") · fan \(rpm) RPM"
+        }
+        return "\(shortChip(m)) · \(m.thermal ?? "Normal")"
     }
 
     private func pct(_ v: Double) -> String { "\(Int(v.rounded()))%" }

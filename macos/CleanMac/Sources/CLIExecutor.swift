@@ -249,6 +249,9 @@ struct StatusSnapshot: Codable {
     var gpuPercent: Double?
     var gpuCores: Int?
     var thermal: String?
+    var diskReadKBs: Double?
+    var diskWriteKBs: Double?
+    var fanRpm: Int?
     var healthScore: Int?
     var healthLabel: String?
     var processes: [ProcessRow]?
@@ -277,23 +280,43 @@ final class CLIExecutor: @unchecked Sendable {
     private var currentProcess: Process?
 
     func binaryPath() -> String {
-        if let res = Bundle.main.resourceURL?.appendingPathComponent("cleanmac").path,
-           FileManager.default.isExecutableFile(atPath: res) {
-            return res
+        let candidates: [String] = {
+            var list: [String] = []
+            if let res = Bundle.main.resourceURL?.appendingPathComponent("cleanmac").path {
+                list.append(res)
+            }
+            if let exec = Bundle.main.executableURL {
+                list.append(exec.deletingLastPathComponent().appendingPathComponent("../Resources/cleanmac").path)
+            }
+            let repoRoot = URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+                .deletingLastPathComponent()
+            list.append(repoRoot.appendingPathComponent("bin/cleanmac").path)
+            list += [
+                FileManager.default.currentDirectoryPath + "/bin/cleanmac",
+                NSHomeDirectory() + "/bin/cleanmac",
+                "/usr/local/bin/cleanmac",
+                "/opt/homebrew/bin/cleanmac",
+            ]
+            return list
+        }()
+        for c in candidates {
+            let path = (c as NSString).standardizingPath
+            if FileManager.default.isExecutableFile(atPath: path) {
+                return path
+            }
         }
-        let candidates = [
-            FileManager.default.currentDirectoryPath + "/bin/cleanmac",
-            NSHomeDirectory() + "/bin/cleanmac",
-            "/usr/local/bin/cleanmac",
-            "/opt/homebrew/bin/cleanmac",
-        ]
-        for c in candidates where FileManager.default.isExecutableFile(atPath: c) {
-            return c
+        return (candidates.first ?? "/usr/local/bin/cleanmac") as String
+    }
+
+    func ensureBinary() throws -> String {
+        let path = binaryPath()
+        guard FileManager.default.isExecutableFile(atPath: path) else {
+            throw CLIError.binaryMissing(path)
         }
-        let dev = URL(fileURLWithPath: #file)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().appendingPathComponent("bin/cleanmac").path
-        return dev
+        return path
     }
 
     func cancel() {
@@ -355,6 +378,9 @@ final class CLIExecutor: @unchecked Sendable {
                 let proc = Process()
                 proc.executableURL = URL(fileURLWithPath: argv[0])
                 proc.arguments = Array(argv.dropFirst())
+                // Same environment as the app — avoids repeated TCC prompts for a mismatched cwd.
+                proc.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
+                proc.environment = ProcessInfo.processInfo.environment
                 let out = Pipe()
                 let err = Pipe()
                 proc.standardOutput = out
